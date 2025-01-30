@@ -165,19 +165,24 @@ interrogationHandler(void* parameter, IMasterConnection connection, CS101_ASDU a
 static bool
 readHandler(void* parameter, IMasterConnection connection, CS101_ASDU asdu, int ioa)
 {
-    if(CS101_ASDU_getTypeID(asdu) == C_RD_NA_1)
+    if(CS101_ASDU_getCOT(asdu) == CS101_COT_REQUEST)
     {
-        if(CS101_ASDU_getCOT(asdu) == CS101_COT_REQUEST)
-        {
-            // TODO: Implement any reading case for testing
-        }
-        else
-        {
-            CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_COT);
-        }
-        IMasterConnection_sendASDU(connection, asdu);
+        // TODO: Implement any reading case for testing
+        InformationObject io = CS101_ASDU_getElement(asdu, 0);
+        CS101_AppLayerParameters alParams = IMasterConnection_getApplicationLayerParameters(connection);
+		CS101_StaticASDU s_asdu;
+		CS101_ASDU newAsdu = CS101_ASDU_initializeStatic(s_asdu, alParams, false, CS101_COT_REQUEST,
+		        0, 1, false, false);
+        switch(ioa);
     }
-    return false;
+    else
+    {
+        CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_COT);
+        CS101_ASDU_setNegative(asdu, true);
+    }
+
+    IMasterConnection_sendASDU(connection, asdu);
+    return true;
 }
 
 static bool
@@ -301,6 +306,9 @@ main(int argc, char** argv)
 
     /* set handler to track connection events (optional) */
     CS104_Slave_setConnectionEventHandler(slave, connectionEventHandler, NULL);
+
+    /* set handler for read command */
+    CS104_Slave_setReadHandler(slave, readHandler, NULL);
 
     /* uncomment to log messages */
     CS104_Slave_setRawMessageHandler(slave, rawMessageHandler, NULL);
