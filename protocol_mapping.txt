@@ -1,7 +1,7 @@
 Convert basic IEC 104 client requests, commands and information elements to MODBUS concepts.
 
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-								IEC 104 Information Elements to MODBUS elements
+								  IEC 104 Information Elements to MODBUS elements
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------										
 				IEC 104							|							MODBUS
 ----------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------	
@@ -9,17 +9,28 @@ Convert basic IEC 104 client requests, commands and information elements to MODB
 ----------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------
 		      	Double Point Information 					|					      Two Coils / Discrete Inputs
 ----------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------
-											|
+			    Normalized value						|						Input / Holding Register
 ----------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------
-											|
+			      Scaled Value						|						Input / Holding Register
 ----------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------
-											|
+		       Short Floating Point Number					|					     Two Input / Holding Registers
 ----------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------
-											|
+			 Binary Counter Reading						|					     Two Input / Holding Registers
 ----------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------
-											|
+			Binary State Information					|					     Two Input / Holding Registers		
+----------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------
+		  Value With Transient State Indication					|						Input / Holding Register
 ----------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------
 
 
 
-IEC 104 Interrogation request - 
+IEC 104 Interrogation request - Read all coil states, disrete inputs, holding and input registers of a targeted device 
+IEC 104 Counter interrogation command - Read all pairs of input / holding registers that hold counter data (if any) of a targeted device 
+IEC 104 Single Command - Turn the specified coil of the targeted device ON or OFF  
+IEC 104 Double Command - Set the specified two coils of the targeted device according to Double command state (DCS)
+IEC 104 Regulating step command - Increment / Decrement value in the specified holding register of the targeted device
+IEC 104 Setpoint command, normalized value - Set the specified holding register of the targeted device to the given normalized value
+IEC 104 Setpoint command, scaled value - Set the specified holding register of the targeted device to the given scaled value
+IEC 104 Setpoint command, short floating point value - Set the specified pair of holding registers of the targeted device to the given short FP value
+Bitstring command - Set the specified pair of holding registers of the targeted device to the given bitstring
+Read command - Read the specified coil state, disrete input, holding or input register of a targeted device 
