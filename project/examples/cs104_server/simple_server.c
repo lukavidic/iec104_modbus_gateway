@@ -14,11 +14,73 @@
  */
 #define MAX_STATIONS 6
 
+#define COIL_ADDRESS_START                  1
+#define COIL_ADDRESS_END                10000
+
+#define DISCRETE_INPUT_ADDRESS_START    10001
+#define DISCRETE_INPUT_ADDRESS_END      20000
+
+#define INPUT_REGISTER_ADDRESS_START    30001
+#define INPUT_REGISTER_ADDRESS_END      40000
+
+#define HOLDING_REGISTER_ADDRESS_START  40001
+#define HOLDING_REGISTER_ADDRESS_END    50000
+
 
 /**
  * Project specific local variables
  */
 uint8_t num_of_stations = 0; //!< Counter variable that stores the number of connected MODBUS stations
+
+void sendAllSinglePoints(IMasterConnection connection)
+{
+    CS101_AppLayerParameters alParams = IMasterConnection_getApplicationLayerParameters(connection);
+    CS101_ASDU newAsdu = CS101_ASDU_create(alParams, false, CS101_COT_INTERROGATED_BY_STATION, 0, 1, false, false);
+
+    // Create and send coil states and discrete inputs for testing
+
+    for(int i = 0; i < 5; i++)
+    {
+        InformationObject io = (InformationObject) SinglePointInformation_create(NULL, COIL_ADDRESS_START + i, true, IEC60870_QUALITY_GOOD);
+        CS101_ASDU_addInformationObject(newAsdu, io);
+        InformationObject_destroy(io);
+    }
+
+    for(int i = 0; i < 5; i++)
+    {
+        InformationObject io = (InformationObject) SinglePointInformation_create(NULL, DISCRETE_INPUT_ADDRESS_START + i, false, IEC60870_QUALITY_GOOD);
+        CS101_ASDU_addInformationObject(newAsdu, io);
+        InformationObject_destroy(io);
+    }
+
+    IMasterConnection_sendASDU(connection, newAsdu);
+    CS101_ASDU_destroy(newAsdu);
+}
+
+void sendAllScaledValues(IMasterConnection connection)
+{
+    CS101_AppLayerParameters alParams = IMasterConnection_getApplicationLayerParameters(connection);
+    CS101_ASDU newAsdu = CS101_ASDU_create(alParams, false, CS101_COT_INTERROGATED_BY_STATION, 0, 1, false, false);
+
+    // Create and send input and holding registers for testing
+
+    for(int i = 0; i < 5; i++)
+    {
+        InformationObject io = (InformationObject) MeasuredValueScaled_create(NULL, INPUT_REGISTER_ADDRESS_START + i, 15 * i, IEC60870_QUALITY_GOOD);
+        CS101_ASDU_addInformationObject(newAsdu, io);
+        InformationObject_destroy(io);
+    }
+
+    for(int i = 0; i < 5; i++)
+    {
+        InformationObject io = (InformationObject) MeasuredValueScaled_create(NULL, HOLDING_REGISTER_ADDRESS_START + i, 50 * i, IEC60870_QUALITY_GOOD);
+        CS101_ASDU_addInformationObject(newAsdu, io);
+        InformationObject_destroy(io);
+    }
+
+    IMasterConnection_sendASDU(connection, newAsdu);
+    CS101_ASDU_destroy(newAsdu);
+}
 
 
 
@@ -82,77 +144,12 @@ interrogationHandler(void* parameter, IMasterConnection connection, CS101_ASDU a
     if (qoi == 20) { /* only handle station interrogation */
 
         CS101_AppLayerParameters alParams = IMasterConnection_getApplicationLayerParameters(connection);
-
         IMasterConnection_sendACT_CON(connection, asdu, false);
 
         /* The CS101 specification only allows information objects without timestamp in GI responses */
-
-        CS101_ASDU newAsdu = CS101_ASDU_create(alParams, false, CS101_COT_INTERROGATED_BY_STATION,
-                0, 1, false, false);
-
-        InformationObject io = (InformationObject) MeasuredValueScaled_create(NULL, 100, -1, IEC60870_QUALITY_GOOD);
-
-        CS101_ASDU_addInformationObject(newAsdu, io);
-
-        CS101_ASDU_addInformationObject(newAsdu, (InformationObject)
-            MeasuredValueScaled_create((MeasuredValueScaled) io, 101, 23, IEC60870_QUALITY_GOOD));
-
-        CS101_ASDU_addInformationObject(newAsdu, (InformationObject)
-            MeasuredValueScaled_create((MeasuredValueScaled) io, 102, 2300, IEC60870_QUALITY_GOOD));
-
-        InformationObject_destroy(io);
-
-        IMasterConnection_sendASDU(connection, newAsdu);
-
-        CS101_ASDU_destroy(newAsdu);
-
-        newAsdu = CS101_ASDU_create(alParams, false, CS101_COT_INTERROGATED_BY_STATION,
-                    0, 1, false, false);
-
-        io = (InformationObject) SinglePointInformation_create(NULL, 104, true, IEC60870_QUALITY_GOOD);
-
-        CS101_ASDU_addInformationObject(newAsdu, io);
-
-        CS101_ASDU_addInformationObject(newAsdu, (InformationObject)
-            SinglePointInformation_create((SinglePointInformation) io, 105, false, IEC60870_QUALITY_GOOD));
-
-        InformationObject_destroy(io);
-
-        IMasterConnection_sendASDU(connection, newAsdu);
-
-        CS101_ASDU_destroy(newAsdu);
-
-        newAsdu = CS101_ASDU_create(alParams, true, CS101_COT_INTERROGATED_BY_STATION,
-                0, 1, false, false);
-
-        CS101_ASDU_addInformationObject(newAsdu, io = (InformationObject) SinglePointInformation_create(NULL, 300, true, IEC60870_QUALITY_GOOD));
-        CS101_ASDU_addInformationObject(newAsdu, (InformationObject) SinglePointInformation_create((SinglePointInformation) io, 301, false, IEC60870_QUALITY_GOOD));
-        CS101_ASDU_addInformationObject(newAsdu, (InformationObject) SinglePointInformation_create((SinglePointInformation) io, 302, true, IEC60870_QUALITY_GOOD));
-        CS101_ASDU_addInformationObject(newAsdu, (InformationObject) SinglePointInformation_create((SinglePointInformation) io, 303, false, IEC60870_QUALITY_GOOD));
-        CS101_ASDU_addInformationObject(newAsdu, (InformationObject) SinglePointInformation_create((SinglePointInformation) io, 304, true, IEC60870_QUALITY_GOOD));
-        CS101_ASDU_addInformationObject(newAsdu, (InformationObject) SinglePointInformation_create((SinglePointInformation) io, 305, false, IEC60870_QUALITY_GOOD));
-        CS101_ASDU_addInformationObject(newAsdu, (InformationObject) SinglePointInformation_create((SinglePointInformation) io, 306, true, IEC60870_QUALITY_GOOD));
-        CS101_ASDU_addInformationObject(newAsdu, (InformationObject) SinglePointInformation_create((SinglePointInformation) io, 307, false, IEC60870_QUALITY_GOOD));
-
-        InformationObject_destroy(io);
-
-        IMasterConnection_sendASDU(connection, newAsdu);
-
-        CS101_ASDU_destroy(newAsdu);
-
-        newAsdu = CS101_ASDU_create(alParams, false, CS101_COT_INTERROGATED_BY_STATION,
-                        0, 1, false, false);
-
-        io = (InformationObject) BitString32_create(NULL, 500, 0xaaaa);
-
-        CS101_ASDU_addInformationObject(newAsdu, io);
-
-        InformationObject_destroy(io);
-
-        IMasterConnection_sendASDU(connection, newAsdu);
-
-        CS101_ASDU_destroy(newAsdu);
-
+        sendAllSinglePoints(connection);
+        sendAllScaledValues(connection);
+        
         IMasterConnection_sendACT_TERM(connection, asdu);
     }
     else {
@@ -167,60 +164,139 @@ readHandler(void* parameter, IMasterConnection connection, CS101_ASDU asdu, int 
 {
     if(CS101_ASDU_getCOT(asdu) == CS101_COT_REQUEST)
     {
-        // TODO: Implement any reading case for testing
-        InformationObject io = CS101_ASDU_getElement(asdu, 0);
         CS101_AppLayerParameters alParams = IMasterConnection_getApplicationLayerParameters(connection);
-		CS101_StaticASDU s_asdu;
-		CS101_ASDU newAsdu = CS101_ASDU_initializeStatic(s_asdu, alParams, false, CS101_COT_REQUEST,
-		        0, 1, false, false);
-        switch(ioa);
+        int ca = CS101_ASDU_getCA(asdu);
+		CS101_ASDU newAsdu = CS101_ASDU_create(alParams, false, CS101_COT_REQUEST, 0, ca, false, false);
+        InformationObject io = NULL;
+        /* 
+            IMPORTANT: Might need to further divide address space of MODBUS to fit all of the
+            IEC104 information elements ! 
+        */
+        if(ioa >= COIL_ADDRESS_START && ioa <= COIL_ADDRESS_END)
+        {
+            // TODO: Read the specified coil status
+            io = (InformationObject) SinglePointInformation_create(NULL, ioa, true, IEC60870_QUALITY_GOOD);
+            printf("Reading state of the coil, address: %i", ioa);
+        }
+        else if(ioa >= DISCRETE_INPUT_ADDRESS_START && ioa <= DISCRETE_INPUT_ADDRESS_END)
+        {
+            // TOOD: Read the specified discrete input
+            io = (InformationObject) SinglePointInformation_create(NULL, ioa, false, IEC60870_QUALITY_GOOD);
+            printf("Reading state of the discrete input, address: %i", ioa);
+        }
+        else if(ioa >= INPUT_REGISTER_ADDRESS_START && ioa <= INPUT_REGISTER_ADDRESS_END)
+        {
+            // TODO: Read the specified input register
+            io = (InformationObject) MeasuredValueScaled_create(NULL, ioa, 123, IEC60870_QUALITY_GOOD);
+            printf("Reading state of the input register, address: %i", ioa);
+        }
+        else if(ioa >= HOLDING_REGISTER_ADDRESS_START && ioa <= HOLDING_REGISTER_ADDRESS_END)
+        {
+            // TODO: Read the specified holding register
+            io = (InformationObject) MeasuredValueScaled_create(NULL, ioa, 456, IEC60870_QUALITY_GOOD);
+            printf("Reading state of the holding register, address: %i", ioa);
+        }
+        else
+        {
+            io = NULL;
+        }
+        if(io == NULL)
+        {
+            CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_IOA);
+            CS101_ASDU_setNegative(asdu, true);
+            IMasterConnection_sendASDU(connection, asdu);
+        }
+        else
+        {
+            CS101_ASDU_addInformationObject(newAsdu, io);
+            InformationObject_destroy(io);
+            IMasterConnection_sendASDU(connection, newAsdu);
+        }
+        CS101_ASDU_destroy(newAsdu);
     }
     else
     {
         CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_COT);
         CS101_ASDU_setNegative(asdu, true);
+        IMasterConnection_sendASDU(connection, asdu);
     }
-
-    IMasterConnection_sendASDU(connection, asdu);
     return true;
 }
 
 static bool
 asduHandler(void* parameter, IMasterConnection connection, CS101_ASDU asdu)
 {
-    if (CS101_ASDU_getTypeID(asdu) == C_SC_NA_1) {
-        printf("received single command\n");
+    /* For now implement only responses to single command and set point scaled value command */
+    if(CS101_ASDU_getTypeID(asdu) == C_SC_NA_1) 
+    {
+        printf("Received single command\n");
 
-        if  (CS101_ASDU_getCOT(asdu) == CS101_COT_ACTIVATION) {
+        if(CS101_ASDU_getCOT(asdu) == CS101_COT_ACTIVATION) 
+        {
             InformationObject io = CS101_ASDU_getElement(asdu, 0);
-
-            if (io) {
-                if (InformationObject_getObjectAddress(io) == 5000) {
+            if(io) 
+            {
+                if(InformationObject_getObjectAddress(io) <= 5) 
+                {
                     SingleCommand sc = (SingleCommand) io;
-
-                    printf("IOA: %i switch to %i\n", InformationObject_getObjectAddress(io),
-                            SingleCommand_getState(sc));
-
+                    printf("IOA: %i switch to %i\n", InformationObject_getObjectAddress(io), SingleCommand_getState(sc));
                     CS101_ASDU_setCOT(asdu, CS101_COT_ACTIVATION_CON);
                 }
                 else
+                {
                     CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_IOA);
-
+                }
                 InformationObject_destroy(io);
             }
-            else {
+            else 
+            {
                 printf("ERROR: message has no valid information object\n");
                 return true;
             }
         }
         else
+        {
             CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_COT);
-
+        }
         IMasterConnection_sendASDU(connection, asdu);
 
         return true;
     }
+    if(CS101_ASDU_getTypeID(asdu) == C_SE_NB_1)
+    {
+        printf("Received set-point, scaled value command\n");
 
+        if(CS101_ASDU_getCOT(asdu) == CS101_COT_ACTIVATION) 
+        {
+            InformationObject io = CS101_ASDU_getElement(asdu, 0);
+            if(io) 
+            {
+                if(InformationObject_getObjectAddress(io) <= HOLDING_REGISTER_ADDRESS_START + 5) 
+                {
+                    SetpointCommandScaled spsc = (SetpointCommandScaled) io;
+                    printf("IOA: %i set to %i\n", InformationObject_getObjectAddress(io), SetpointCommandScaled_getValue(spsc));
+                    CS101_ASDU_setCOT(asdu, CS101_COT_ACTIVATION_CON);
+                }
+                else
+                {
+                    CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_IOA);
+                }
+                InformationObject_destroy(io);
+            }
+            else 
+            {
+                printf("ERROR: message has no valid information object\n");
+                return true;
+            }
+        }
+        else
+        {
+            CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_COT);
+        }
+        IMasterConnection_sendASDU(connection, asdu);
+
+        return true;
+    }
     return false;
 }
 
@@ -324,11 +400,11 @@ main(int argc, char** argv)
 
     while (running) {
 
-        Thread_sleep(1000);
+        Thread_sleep(10000);
 
         CS101_ASDU newAsdu = CS101_ASDU_create(alParams, false, CS101_COT_PERIODIC, 0, 1, false, false);
 
-        InformationObject io = (InformationObject) MeasuredValueScaled_create(NULL, 110, scaledValue, IEC60870_QUALITY_GOOD);
+        InformationObject io = (InformationObject) MeasuredValueScaled_create(NULL, INPUT_REGISTER_ADDRESS_START, scaledValue, IEC60870_QUALITY_GOOD);
 
         scaledValue++;
 
