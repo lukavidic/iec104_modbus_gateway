@@ -209,10 +209,11 @@ void print_slaves(simple_slave_t* slaves, uint8_t num_of_slaves)
     }
 }
 
-bool interrogate_slave(uint8_t slave_id, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx)
+interrogation_response_t* interrogate_slave(uint8_t slave_id, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx)
 {
+    interrogation_response_t* resp = NULL;
     uint8_t idx = 0, addr = 0;
-    uint16_t tmp = 0;
+
     while(slave_id != slaves[idx].id && idx < num_of_slaves)
     {
         idx++;
@@ -221,17 +222,35 @@ bool interrogate_slave(uint8_t slave_id, simple_slave_t* slaves, uint8_t num_of_
     if(idx >= num_of_slaves)
     {
         fprintf(stderr, "Failed to interrogate slave, invalid slave ID.\n");
-        return false;
+        return NULL;
     }
 
+    fprintf(stdout, "Interrogation start. Slave id: %u, description: %s\n", slaves[idx].id, slaves[idx].name);
     modbus_set_slave(ctx, slave_id);
+
+    resp = (interrogation_response_t*) malloc(sizeof(interrogation_response_t));
+    resp->coils = (uint8_t*) malloc(slaves[idx].num_of_coils * sizeof(uint8_t));
+    resp->discrete_inputs = (uint8_t*) malloc(slaves[idx].num_of_discrete_inputs * sizeof(uint8_t));
+    resp->input_regs = (uint16_t*) malloc(slaves[idx].num_of_input_registers * sizeof(uint16_t));
+    resp->holding_regs = (uint16_t*) malloc(slaves[idx].num_of_holding_registers * sizeof(uint16_t));
+
+    if(resp->coils == NULL || resp->discrete_inputs == NULL || resp->holding_regs == NULL || resp->input_regs == NULL)
+    {
+        fprintf(stdout, "Failed to allocate memory for interrogation response.\n");
+        return NULL;
+    }
+
+    resp->num_of_coils = slaves[idx].num_of_coils;
+    resp->num_of_discrete_inputs = slaves[idx].num_of_discrete_inputs;
+    resp->num_of_input_registers = slaves[idx].num_of_input_registers;
+    resp->num_of_holding_registers = slaves[idx].num_of_holding_registers;
 
     fprintf(stdout, "Reading coils...\n");
     for(uint8_t i = 0; i < slaves[idx].num_of_coils; i++)
     {
         addr = slaves[idx].coils_addr[i];
-        modbus_read_bits(ctx, addr, 1, (uint8_t*)(&tmp));
-        fprintf(stdout, "Coil %u status: %s\n", addr, tmp ? "ON" : "OFF");
+        modbus_read_bits(ctx, addr, 1, (&resp->coils[i]));
+        fprintf(stdout, "Coil %u status: %s\n", addr, resp->coils[i] ? "ON" : "OFF");
     }
     fprintf(stdout, "\n");
 
@@ -239,8 +258,8 @@ bool interrogate_slave(uint8_t slave_id, simple_slave_t* slaves, uint8_t num_of_
     for(uint8_t i = 0; i < slaves[idx].num_of_discrete_inputs; i++)
     {
         addr = slaves[idx].discrete_inputs_addr[i];
-        modbus_read_input_bits(ctx, addr, 1, (uint8_t*)(&tmp));
-        fprintf(stdout, "Discrete input %u status: %s\n", addr, tmp ? "ON" : "OFF");
+        modbus_read_input_bits(ctx, addr, 1, (uint8_t*)(&resp->discrete_inputs[i]));
+        fprintf(stdout, "Discrete input %u status: %s\n", addr, resp->discrete_inputs[i] ? "ON" : "OFF");
     }
     fprintf(stdout, "\n");
 
@@ -248,8 +267,8 @@ bool interrogate_slave(uint8_t slave_id, simple_slave_t* slaves, uint8_t num_of_
     for(uint8_t i = 0; i < slaves[idx].num_of_input_registers; i++)
     {
         addr = slaves[idx].input_registers_addr[i];
-        modbus_read_input_registers(ctx, addr, 1, &tmp);
-        fprintf(stdout, "Input register %u value: %u\n", addr, tmp);
+        modbus_read_input_registers(ctx, addr, 1, &resp->input_regs[i]);
+        fprintf(stdout, "Input register %u value: %u\n", addr, resp->input_regs[i]);
     }
     fprintf(stdout, "\n");
 
@@ -257,10 +276,27 @@ bool interrogate_slave(uint8_t slave_id, simple_slave_t* slaves, uint8_t num_of_
     for(uint8_t i = 0; i < slaves[idx].num_of_holding_registers; i++)
     {
         addr = slaves[idx].holding_registers_addr[i];
-        modbus_read_registers(ctx, addr, 1, &tmp);
-        fprintf(stdout, "Holding register %u value: %u\n", addr, tmp);
+        modbus_read_registers(ctx, addr, 1, &resp->holding_regs[i]);
+        fprintf(stdout, "Holding register %u value: %u\n", addr, resp->holding_regs[i]);
     }
     fprintf(stdout, "\n");
 
-    return true;
+    return resp;
 }
+
+uint8_t* read_coil(uint8_t slave_id, uint8_t coil_addr, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx)
+{
+
+}
+
+uint8_t* read_coil(uint8_t slave_id, uint8_t discrete_input_addr, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx)
+{
+    
+}
+
+uint16_t* read_coil(uint8_t slave_id, uint8_t input_reg_addr, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx)
+{
+
+}
+
+uint16_t* read_coil(uint8_t slave_id, uint8_t holding_reg_addr, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx);

@@ -33,6 +33,21 @@ typedef struct simple_slave
     uint8_t* holding_registers_addr;
 } simple_slave_t;
 
+/**
+ * @brief Structure that holds interrogation response of certain slave
+ */
+typedef struct interrogation_response
+{
+    uint8_t* coils;
+    uint8_t num_of_coils;
+    uint8_t* discrete_inputs;
+    uint8_t num_of_discrete_inputs;
+    uint16_t* input_regs;
+    uint8_t num_of_input_registers;
+    uint16_t* holding_regs;
+    uint8_t num_of_holding_registers;
+} interrogation_response_t;
+
 
 /**
  * @brief Function that parses slave configuration of json config file for slave memory layout
@@ -109,9 +124,61 @@ void print_slaves(simple_slave_t* slaves, uint8_t num_of_slaves);
  * @param num_of_slaves Number of allocated slave objects
  * @param ctx Initialized modbus context
  * 
- * @returns true if successful, false otherwise
+ * @returns Dynamically allocated and filled interrogation response structure or NULL if failure
  */
-bool interrogate_slave(uint8_t slave_id, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx);
+interrogation_response_t* interrogate_slave(uint8_t slave_id, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx);
+
+/**
+ * @brief Function that reads status of one coil
+ * 
+ * @param slave_id Address (id) of the slave device
+ * @param coil_addr Address of the coil to be read
+ * @param slaves The array of existing slaves
+ * @param num_of_slaves Number of allocated slave objects
+ * @param ctx Initialized modbus context
+ * 
+ * @returns Dynamically allocated variable holding the status of a coil or NULL if failure
+ */
+uint8_t* read_coil(uint8_t slave_id, uint8_t coil_addr, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx);
+
+/**
+ * @brief Function that reads status of one discrete input
+ * 
+ * @param slave_id Address (id) of the slave device
+ * @param discrete_input_addr Address of the discrete input to be read
+ * @param slaves The array of existing slaves
+ * @param num_of_slaves Number of allocated slave objects
+ * @param ctx Initialized modbus context
+ * 
+ * @returns Dynamically allocated variable holding the status of a discrete input or NULL if failure
+ */
+uint8_t* read_coil(uint8_t slave_id, uint8_t discrete_input_addr, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx);
+
+/**
+ * @brief Function that reads value from one input register
+ * 
+ * @param slave_id Address (id) of the slave device
+ * @param input_reg_addr Address of the input register to be read
+ * @param slaves The array of existing slaves
+ * @param num_of_slaves Number of allocated slave objects
+ * @param ctx Initialized modbus context
+ * 
+ * @returns Dynamically allocated variable holding the value of an input register or NULL if failure
+ */
+uint16_t* read_coil(uint8_t slave_id, uint8_t input_reg_addr, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx);
+
+/**
+ * @brief Function that reads value from one holding register
+ * 
+ * @param slave_id Address (id) of the slave device
+ * @param holding_reg_addr Address of the holding register to be read
+ * @param slaves The array of existing slaves
+ * @param num_of_slaves Number of allocated slave objects
+ * @param ctx Initialized modbus context
+ * 
+ * @returns Dynamically allocated variable holding the value of a holding register or NULL if failure
+ */
+uint16_t* read_coil(uint8_t slave_id, uint8_t holding_reg_addr, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx);
 
 #endif
 /* end of file */
