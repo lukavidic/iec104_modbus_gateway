@@ -3,9 +3,14 @@
  * 
  * @brief This file contains implementation of functions used to
  * implement a specific modbus RTU master
+ * 
+ * @details This file implements all of the functions available from modbus_master.h 
+ * API. Implementation of these API functions also offer debug messages if needed.
+ * To enable output of these messages, please define PRINT_DEBUG in your main source file.
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <errno.h>
 #include <string.h>
 #include "modbus_master.h"
@@ -17,7 +22,9 @@ uint8_t* parse_address_array(json_t* json_array, uint8_t* count)
 
     if (addresses == NULL) 
     {
-        fprintf(stderr, "Failed to allocate memory for address array !\n");
+        #ifdef PRINT_DEBUG
+            fprintf(stderr, "Failed to allocate memory for address array !\n");
+        #endif
         return NULL;
     }
 
@@ -41,7 +48,9 @@ simple_slave_t* parse_slaves(json_t* root, uint8_t* num_of_slaves)
 
     if (json_is_array(slaves_array) == 0) 
     {
-        fprintf(stderr, "Invalid JSON format: 'slaves' is not an array\n");
+        #ifdef PRINT_DEBUG
+            fprintf(stderr, "Invalid JSON format: 'slaves' is not an array\n");
+        #endif
         return NULL;
     }
 
@@ -49,7 +58,9 @@ simple_slave_t* parse_slaves(json_t* root, uint8_t* num_of_slaves)
     slaves = (simple_slave_t*)malloc(size * sizeof(simple_slave_t));
     if (slaves == NULL) 
     {
-        fprintf(stderr, "Failed to allocate memory for slave device objects.\n");
+        #ifdef PRINT_DEBUG
+            fprintf(stderr, "Failed to allocate memory for slave device objects.\n");
+        #endif
         return NULL;
     }
 
@@ -100,6 +111,15 @@ void free_modbus(modbus_t* ctx)
     modbus_free(ctx);
 }
 
+void free_interrogation_response(interrogation_response_t* resp)
+{
+    free(resp->coils);
+    free(resp->discrete_inputs);
+    free(resp->input_regs);
+    free(resp->holding_regs);
+    free(resp);
+}
+
 simple_slave_t* init_slaves(const char* cfg_file, uint8_t* num_of_slaves)
 {
     simple_slave_t* slaves = NULL;
@@ -109,7 +129,9 @@ simple_slave_t* init_slaves(const char* cfg_file, uint8_t* num_of_slaves)
     
     if(root == NULL)
     {
-        fprintf(stderr, "Error parsing JSON: %s (line %d, column %d)\n", error.text, error.line, error.column);
+        #ifdef PRINT_DEBUG
+            fprintf(stderr, "Error parsing JSON: %s (line %d, column %d)\n", error.text, error.line, error.column);
+        #endif
         return NULL;
     }
 
@@ -124,7 +146,9 @@ modbus_t* init_modbus_connection(const char* dev_path, uint32_t baud, uint8_t pa
     modbus_t* ctx = modbus_new_rtu(dev_path, baud, parity, data_bits, stop_bits); 
     if (ctx == NULL) 
     {
-        fprintf(stderr, "Unable to create the libmodbus context: %s\n", modbus_strerror(errno));
+        #ifdef PRINT_DEBUG
+            fprintf(stderr, "Unable to create the libmodbus context: %s\n", modbus_strerror(errno));
+        #endif
         return NULL;
     }
 
@@ -145,7 +169,9 @@ modbus_t* init_modbus_connection(const char* dev_path, uint32_t baud, uint8_t pa
     /* Connect to the line */
     if(modbus_connect(ctx) == -1)
     {
-        fprintf(stderr, "Modbus connection failed: %s\n", modbus_strerror(errno));
+        #ifdef PRINT_DEBUG
+            fprintf(stderr, "Modbus connection failed: %s\n", modbus_strerror(errno));
+        #endif
         return NULL;
     }
 
@@ -209,26 +235,48 @@ void print_slaves(simple_slave_t* slaves, uint8_t num_of_slaves)
     }
 }
 
+uint8_t get_slave_idx(uint8_t slave_id, simple_slave_t* slaves, uint8_t num_of_slaves)
+{
+    uint8_t idx;
+    for(idx = 0; idx < num_of_slaves; idx++)
+    {
+        if(slaves[idx].id == slave_id)
+        {
+            return idx;
+        }
+    }
+    return num_of_slaves;
+}
+
 interrogation_response_t* interrogate_slave(uint8_t slave_id, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx)
 {
     interrogation_response_t* resp = NULL;
-    uint8_t idx = 0, addr = 0;
+    uint8_t idx = 0;
+    uint8_t addr = 0;
 
-    while(slave_id != slaves[idx].id && idx < num_of_slaves)
-    {
-        idx++;
-    }
+    idx = get_slave_idx(slave_id, slaves, num_of_slaves);
 
     if(idx >= num_of_slaves)
     {
-        fprintf(stderr, "Failed to interrogate slave, invalid slave ID.\n");
+        #ifdef PRINT_DEBUG
+            fprintf(stderr, "Failed to interrogate slave, invalid slave ID.\n");
+        #endif
         return NULL;
     }
-
-    fprintf(stdout, "Interrogation start. Slave id: %u, description: %s\n", slaves[idx].id, slaves[idx].name);
+    #ifdef PRINT_DEBUG
+        fprintf(stdout, "Interrogation start. Slave id: %u, description: %s\n", slaves[idx].id, slaves[idx].name);
+    #endif
     modbus_set_slave(ctx, slave_id);
 
     resp = (interrogation_response_t*) malloc(sizeof(interrogation_response_t));
+    if(resp == NULL)
+    {
+        #ifdef PRINT_DEBUG
+            fprintf(stderr, "Failed to allocate memory for interrogation response structure.\n")
+        #endif
+        return NULL;
+    }
+
     resp->coils = (uint8_t*) malloc(slaves[idx].num_of_coils * sizeof(uint8_t));
     resp->discrete_inputs = (uint8_t*) malloc(slaves[idx].num_of_discrete_inputs * sizeof(uint8_t));
     resp->input_regs = (uint16_t*) malloc(slaves[idx].num_of_input_registers * sizeof(uint16_t));
@@ -236,7 +284,9 @@ interrogation_response_t* interrogate_slave(uint8_t slave_id, simple_slave_t* sl
 
     if(resp->coils == NULL || resp->discrete_inputs == NULL || resp->holding_regs == NULL || resp->input_regs == NULL)
     {
-        fprintf(stdout, "Failed to allocate memory for interrogation response.\n");
+        #ifdef PRINT_DEBUG
+            fprintf(stderr, "Failed to allocate memory for interrogation response arrays.\n");
+        #endif
         return NULL;
     }
 
@@ -245,58 +295,261 @@ interrogation_response_t* interrogate_slave(uint8_t slave_id, simple_slave_t* sl
     resp->num_of_input_registers = slaves[idx].num_of_input_registers;
     resp->num_of_holding_registers = slaves[idx].num_of_holding_registers;
 
-    fprintf(stdout, "Reading coils...\n");
+    #ifdef PRINT_DEBUG
+        fprintf(stdout, "Reading coils...\n");
+    #endif
     for(uint8_t i = 0; i < slaves[idx].num_of_coils; i++)
     {
         addr = slaves[idx].coils_addr[i];
         modbus_read_bits(ctx, addr, 1, (&resp->coils[i]));
-        fprintf(stdout, "Coil %u status: %s\n", addr, resp->coils[i] ? "ON" : "OFF");
-    }
-    fprintf(stdout, "\n");
 
-    fprintf(stdout, "Reading discrete inputs...\n");
+        #ifdef PRINT_DEBUG
+            fprintf(stdout, "Coil %u status: %s\n", addr, resp->coils[i] ? "ON" : "OFF");
+        #endif
+    }
+
+    #ifdef PRINT_DEBUG
+        fprintf(stdout, "\n");
+
+        fprintf(stdout, "Reading discrete inputs...\n");
+    #endif
+
     for(uint8_t i = 0; i < slaves[idx].num_of_discrete_inputs; i++)
     {
         addr = slaves[idx].discrete_inputs_addr[i];
         modbus_read_input_bits(ctx, addr, 1, (uint8_t*)(&resp->discrete_inputs[i]));
-        fprintf(stdout, "Discrete input %u status: %s\n", addr, resp->discrete_inputs[i] ? "ON" : "OFF");
+        #ifdef PRINT_DEBUG
+            fprintf(stdout, "Discrete input %u status: %s\n", addr, resp->discrete_inputs[i] ? "ON" : "OFF");
+        #endif
     }
-    fprintf(stdout, "\n");
 
-    fprintf(stdout, "Reading input registers...\n");
+    #ifdef PRINT_DEBUG
+        fprintf(stdout, "\n");
+
+        fprintf(stdout, "Reading input registers...\n");
+    #endif
+    
     for(uint8_t i = 0; i < slaves[idx].num_of_input_registers; i++)
     {
         addr = slaves[idx].input_registers_addr[i];
         modbus_read_input_registers(ctx, addr, 1, &resp->input_regs[i]);
-        fprintf(stdout, "Input register %u value: %u\n", addr, resp->input_regs[i]);
+        
+        #ifdef PRINT_DEBUG
+            fprintf(stdout, "Input register %u value: %u\n", addr, resp->input_regs[i]);
+        #endif
     }
-    fprintf(stdout, "\n");
 
-    fprintf(stdout, "Reading holding registers...\n");
+    #ifdef PRINT_DEBUG
+        fprintf(stdout, "\n");
+
+        fprintf(stdout, "Reading holding registers...\n");
+    #endif
+
     for(uint8_t i = 0; i < slaves[idx].num_of_holding_registers; i++)
     {
         addr = slaves[idx].holding_registers_addr[i];
         modbus_read_registers(ctx, addr, 1, &resp->holding_regs[i]);
-        fprintf(stdout, "Holding register %u value: %u\n", addr, resp->holding_regs[i]);
+        
+        #ifdef PRINT_DEBUG
+            fprintf(stdout, "Holding register %u value: %u\n", addr, resp->holding_regs[i]);
+        #endif
     }
-    fprintf(stdout, "\n");
+
+    #ifdef PRINT_DEBUG
+        fprintf(stdout, "\n");
+    #endif
 
     return resp;
 }
 
 uint8_t* read_coil(uint8_t slave_id, uint8_t coil_addr, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx)
 {
+    uint8_t idx = 0;
+    uint8_t* res = NULL;
 
+    idx = get_slave_idx(slave_id, slaves, num_of_slaves);
+
+    if(idx >= num_of_slaves)
+    {
+        #ifdef PRINT_DEBUG
+            fprintf(stderr, "Failed to read coil, invalid slave ID.\n");
+        #endif
+        return NULL;
+    }
+
+    modbus_set_slave(ctx, slave_id);
+    for(uint8_t i = 0; i < slaves[idx].num_of_coils; i++)
+    {
+        if(slaves[idx].coils_addr[i] == coil_addr)
+        {
+            res = (uint8_t*) calloc(1, sizeof(uint8_t));
+            modbus_read_bits(ctx, coil_addr, 1, res);
+
+            #ifdef PRINT_DEBUG
+                fprintf(stdout, "Coil address: %u, status: %s\n", coil_addr, *res ? "ON" : "OFF");
+            #endif
+            break;
+        }
+    }
+
+    return res;
 }
 
-uint8_t* read_coil(uint8_t slave_id, uint8_t discrete_input_addr, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx)
+uint8_t* read_discrete_input(uint8_t slave_id, uint8_t discrete_input_addr, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx)
 {
+    uint8_t idx = 0;
+    uint8_t* res = NULL;
+
+    idx = get_slave_idx(slave_id, slaves, num_of_slaves);
+
+    if(idx >= num_of_slaves)
+    {
+        #ifdef PRINT_DEBUG
+            fprintf(stderr, "Failed to read discrete input, invalid slave ID.\n");
+        #endif
+        return NULL;
+    }
+
+    modbus_set_slave(ctx, slave_id);
+    for(uint8_t i = 0; i < slaves[idx].num_of_discrete_inputs; i++)
+    {
+        if(slaves[idx].discrete_inputs_addr[i] == discrete_input_addr)
+        {
+            res = (uint8_t*) calloc(1, sizeof(uint8_t));
+            modbus_read_input_bits(ctx, discrete_input_addr, 1, res);
+
+            #ifdef PRINT_DEBUG
+                fprintf(stdout, "Discrete input address: %u, status: %s\n", discrete_input_addr, *res ? "ON" : "OFF");
+            #endif
+            break;
+        }
+    }
+
+    return res;
+}
+
+uint16_t* read_input_register(uint8_t slave_id, uint8_t input_reg_addr, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx)
+{
+    uint8_t idx = 0;
+    uint16_t* res = NULL;
+
+    idx = get_slave_idx(slave_id, slaves, num_of_slaves);
+
+    if(idx >= num_of_slaves)
+    {
+        #ifdef PRINT_DEBUG
+            fprintf(stderr, "Failed to read input register, invalid slave ID.\n");
+        #endif
+        return NULL;
+    }
+
+    modbus_set_slave(ctx, slave_id);
+    for(uint8_t i = 0; i < slaves[idx].num_of_input_registers; i++)
+    {
+        if(slaves[idx].input_registers_addr[i] == input_reg_addr)
+        {
+            res = (uint16_t*) calloc(1, sizeof(uint16_t));
+            modbus_read_input_registers(ctx, input_reg_addr, 1, res);
+
+            #ifdef PRINT_DEBUG
+                fprintf(stdout, "Input register address: %u, value: %u\n", input_reg_addr, res);
+            #endif
+            break;
+        }
+    }
+
+    return res;
+}
+
+uint16_t* read_holding_register(uint8_t slave_id, uint8_t holding_reg_addr, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx)
+{
+    uint8_t idx = 0;
+    uint16_t* res = NULL;
+
+    idx = get_slave_idx(slave_id, slaves, num_of_slaves);
+
+    if(idx >= num_of_slaves)
+    {
+        #ifdef PRINT_DEBUG
+            fprintf(stderr, "Failed to read holding register, invalid slave ID.\n");
+        #endif
+        return NULL;
+    }
+
+    modbus_set_slave(ctx, slave_id);
+    for(uint8_t i = 0; i < slaves[idx].num_of_holding_registers; i++)
+    {
+        if(slaves[idx].holding_registers_addr[i] == holding_reg_addr)
+        {
+            res = (uint16_t*) malloc(sizeof(uint16_t));
+            modbus_read_registers(ctx, holding_reg_addr, 1, res);
+
+            #ifdef PRINT_DEBUG
+                fprintf(stdout, "Holding register address: %u, value: %u\n", holding_reg_addr, res);
+            #endif
+            break;
+        }
+    }
+
+    return res;
+}
+
+uint8_t write_coil(uint8_t slave_id, uint8_t coil_addr, uint8_t coil_value, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx)
+{
+    uint8_t idx = get_slave_idx(slave_id, slaves, num_of_slaves);
+
+    if(idx >= num_of_slaves)
+    {
+        #ifdef PRINT_DEBUG
+            fprintf(stderr, "Failed to set the coil state, invalid slave ID.\n");
+        #endif
+        return 0;
+    }
+
+    modbus_set_slave(ctx, slave_id);
+    for(uint8_t i = 0; i < slaves[idx].num_of_coils; i++)
+    {
+        if(slaves[idx].coils_addr[i] == coil_addr)
+        {
+            modbus_write_bit(ctx, coil_addr, coil_value);
+
+            #ifdef PRINT_DEBUG
+                fprintf(stdout, "Set status: %s to coil, address: %u\n", coil_value ? "ON" : "OFF", coil_addr);
+            #endif
+            return 1;
+        }
+    }
     
+    return 0;
 }
 
-uint16_t* read_coil(uint8_t slave_id, uint8_t input_reg_addr, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx)
+uint8_t write_holding_register(uint8_t slave_id, uint8_t holding_reg_addr, uint16_t holding_reg_value, simple_slave_t* slaves, 
+                               uint8_t num_of_slaves, modbus_t* ctx)
 {
+    uint8_t idx = get_slave_idx(slave_id, slaves, num_of_slaves);
 
+    if(idx >= num_of_slaves)
+    {
+        #ifdef PRINT_DEBUG
+            fprintf(stderr, "Failed to set the holding register value, invalid slave ID.\n");
+        #endif
+        return 0;
+    }
+
+    modbus_set_slave(ctx, slave_id);
+    for(uint8_t i = 0; i < slaves[idx].num_of_holding_registers; i++)
+    {
+        if(slaves[idx].holding_registers_addr[i] == holding_reg_addr)
+        {
+            modbus_write_register(ctx, holding_reg_addr, holding_reg_value);
+
+            #ifdef PRINT_DEBUG
+                fprintf(stdout, "Set value: %u to holding register, address: %u\n", holding_reg_value, holding_reg_addr);
+            #endif
+            return 1;
+        }
+    }
+    
+    return 0;
 }
 
-uint16_t* read_coil(uint8_t slave_id, uint8_t holding_reg_addr, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx);
