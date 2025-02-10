@@ -73,7 +73,7 @@ int main()
                          [3] - Read input register value\n
                          [4] - Read holding register value\n
                          [5] - Set coil status\n
-                         [6] - Set holding register value\n
+                         [6] - Set holding register value\n\n
                          Choice: ");
         fscanf(stdin, "%d\n", &choice);
         switch (choice)
@@ -84,7 +84,7 @@ int main()
             resp = interrogate_slave(slave_id, slaves, num_of_slaves, ctx);
             if(resp == NULL)
             {
-                fprintf(stderr, "Slave interrogation failed.\n");
+                fprintf(stdout, "Slave interrogation failed.\n");
             }
             else
             {
@@ -100,7 +100,7 @@ int main()
             recv_value8 = read_coil(slave_id, target_address, slaves, num_of_slaves, ctx);
             if(recv_value8 == NULL)
             {
-                fprintf(stderr, "Reading coil status failed.\n");
+                fprintf(stdout, "Reading coil status failed.\n");
             }
             else
             {
@@ -116,7 +116,7 @@ int main()
             recv_value8 = read_discrete_input(slave_id, target_address, slaves, num_of_slaves, ctx);
             if(recv_value8 == NULL)
             {
-                fprintf(stderr, "Reading discrete input status failed.\n");
+                fprintf(stdout, "Reading discrete input status failed.\n");
             }
             else
             {
@@ -132,7 +132,7 @@ int main()
             recv_value16 = read_input_register(slave_id, target_address, slaves, num_of_slaves, ctx);
             if(recv_value16 == NULL)
             {
-                fprintf(stderr, "Reading input register value failed.\n");
+                fprintf(stdout, "Reading input register value failed.\n");
             }
             else
             {
@@ -143,22 +143,58 @@ int main()
         case READ_HOLDING_REGISTER_CMD:
             fprintf(stdout, "Slave ID: ");
             fscanf(stdin, "%u\n", &slave_id);
-            fprintf(stdout, "Input register address: ");
+            fprintf(stdout, "Holding register address: ");
             fscanf(stdin, "%u\n", &target_address);
             recv_value16 = read_holding_register(slave_id, target_address, slaves, num_of_slaves, ctx);
             if(recv_value16 == NULL)
             {
-                fprintf(stderr, "Reading input register value failed.\n");
+                fprintf(stdout, "Reading holding register value failed.\n");
             }
             else
             {
-                fprintf(stdout, "Input register value reading successful.\n");
+                fprintf(stdout, "Holding register value reading successful.\n");
                 free(recv_value16);
             }
             break;
         case WRITE_COIL_CMD:
+            fprintf(stdout, "Slave ID: ");
+            fscanf(stdin, "%u\n", &slave_id);
+            fprintf(stdout, "Coil address: ");
+            fscanf(stdin, "%u\n", &target_address);
+            fprintf(stdout, "Coil value (0, 1): ");
+            fscanf(stdin, "%u\n", &target_value);
+            if(target_value > 0)
+            {
+                target_value = COIL_ON_VALUE
+            }
+            else
+            {
+                target_value = COIL_OFF_VALUE;
+            }
+            if(write_coil(slave_id, target_address, (uint8_t)target_value, slaves, num_of_slaves, ctx))
+            {
+                fprintf(stdout, "Setting coil status successful.\n");
+            }
+            else
+            {
+                fprintf(stdout, "Setting coil status failed.\n");
+            }
             break;
         case WRITE_HOLDING_REGISTER_CMD:
+            fprintf(stdout, "Slave ID: ");
+            fscanf(stdin, "%u\n", &slave_id);
+            fprintf(stdout, "Holding register address: ");
+            fscanf(stdin, "%u\n", &target_address);
+            fprintf(stdout, "Holding register value (0 - 65535): ");
+            fscanf(stdin, "%u\n", &target_value);
+            if(write_holding_register(slave_id, target_address, target_value, slaves, num_of_slaves, ctx))
+            {
+                fprintf(stdout, "Setting holding register value successful.\n");
+            }
+            else
+            {
+                fprintf(stdout, "Setting holding register value failed.\n");
+            }
             break;
         default:
             fprintf(stdout, "ERROR, non-existent command issued.\n");
