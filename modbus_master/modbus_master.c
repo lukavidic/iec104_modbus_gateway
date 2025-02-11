@@ -6,7 +6,7 @@
  * 
  * @details This file implements all of the functions available from modbus_master.h 
  * API. Implementation of these API functions also offer debug messages if needed.
- * To enable output of these messages, please define PRINT_DEBUG in your main source file.
+ * To enable output of these messages, please define PRINT_DEBUG.
  */
 
 #include <stdio.h>
@@ -14,6 +14,8 @@
 #include <errno.h>
 #include <string.h>
 #include "modbus_master.h"
+
+#define PRINT_DEBUG
 
 uint8_t* parse_address_array(json_t* json_array, uint8_t* count) 
 {
@@ -238,6 +240,7 @@ void print_slaves(simple_slave_t* slaves, uint8_t num_of_slaves)
 uint8_t get_slave_idx(uint8_t slave_id, simple_slave_t* slaves, uint8_t num_of_slaves)
 {
     uint8_t idx;
+    
     for(idx = 0; idx < num_of_slaves; idx++)
     {
         if(slaves[idx].id == slave_id)
@@ -259,28 +262,25 @@ interrogation_response_t* interrogate_slave(uint8_t slave_id, simple_slave_t* sl
     if(idx >= num_of_slaves)
     {
         #ifdef PRINT_DEBUG
-            fprintf(stderr, "Failed to interrogate slave, invalid slave ID.\n");
+            fprintf(stderr, "Failed to interrogate slave, invalid slave ID: %u.\n", slave_id);
         #endif
         return NULL;
     }
-    #ifdef PRINT_DEBUG
-        fprintf(stdout, "Interrogation start. Slave id: %u, description: %s\n", slaves[idx].id, slaves[idx].name);
-    #endif
     modbus_set_slave(ctx, slave_id);
 
     resp = (interrogation_response_t*) malloc(sizeof(interrogation_response_t));
     if(resp == NULL)
     {
         #ifdef PRINT_DEBUG
-            fprintf(stderr, "Failed to allocate memory for interrogation response structure.\n")
+            fprintf(stderr, "Failed to allocate memory for interrogation response structure.\n");
         #endif
         return NULL;
     }
 
-    resp->coils = (uint8_t*) malloc(slaves[idx].num_of_coils * sizeof(uint8_t));
-    resp->discrete_inputs = (uint8_t*) malloc(slaves[idx].num_of_discrete_inputs * sizeof(uint8_t));
-    resp->input_regs = (uint16_t*) malloc(slaves[idx].num_of_input_registers * sizeof(uint16_t));
-    resp->holding_regs = (uint16_t*) malloc(slaves[idx].num_of_holding_registers * sizeof(uint16_t));
+    resp->coils = (uint8_t*) calloc(slaves[idx].num_of_coils, sizeof(uint8_t));
+    resp->discrete_inputs = (uint8_t*) calloc(slaves[idx].num_of_discrete_inputs, sizeof(uint8_t));
+    resp->input_regs = (uint16_t*) calloc(slaves[idx].num_of_input_registers, sizeof(uint16_t));
+    resp->holding_regs = (uint16_t*) calloc(slaves[idx].num_of_holding_registers, sizeof(uint16_t));
 
     if(resp->coils == NULL || resp->discrete_inputs == NULL || resp->holding_regs == NULL || resp->input_regs == NULL)
     {
@@ -294,6 +294,10 @@ interrogation_response_t* interrogate_slave(uint8_t slave_id, simple_slave_t* sl
     resp->num_of_discrete_inputs = slaves[idx].num_of_discrete_inputs;
     resp->num_of_input_registers = slaves[idx].num_of_input_registers;
     resp->num_of_holding_registers = slaves[idx].num_of_holding_registers;
+
+    #ifdef PRINT_DEBUG
+        fprintf(stdout, "\n------ Interrogation start -------\nSlave id: %u\nSlave description: %s\n", slaves[idx].id, slaves[idx].name);
+    #endif
 
     #ifdef PRINT_DEBUG
         fprintf(stdout, "Reading coils...\n");
@@ -452,7 +456,7 @@ uint16_t* read_input_register(uint8_t slave_id, uint8_t input_reg_addr, simple_s
             modbus_read_input_registers(ctx, input_reg_addr, 1, res);
 
             #ifdef PRINT_DEBUG
-                fprintf(stdout, "Input register address: %u, value: %u\n", input_reg_addr, res);
+                fprintf(stdout, "Input register address: %u, value: %u\n", input_reg_addr, *res);
             #endif
             break;
         }
@@ -481,11 +485,11 @@ uint16_t* read_holding_register(uint8_t slave_id, uint8_t holding_reg_addr, simp
     {
         if(slaves[idx].holding_registers_addr[i] == holding_reg_addr)
         {
-            res = (uint16_t*) malloc(sizeof(uint16_t));
+            res = (uint16_t*) calloc(1, sizeof(uint16_t));
             modbus_read_registers(ctx, holding_reg_addr, 1, res);
 
             #ifdef PRINT_DEBUG
-                fprintf(stdout, "Holding register address: %u, value: %u\n", holding_reg_addr, res);
+                fprintf(stdout, "Holding register address: %u, value: %u\n", holding_reg_addr, *res);
             #endif
             break;
         }

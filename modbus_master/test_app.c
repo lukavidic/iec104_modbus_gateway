@@ -12,7 +12,8 @@
 #define DATA_BITS 8 
 #define STOP_BITS 2
 
-#define PRINT_DEBUG
+#define EXIT_VAL 8
+#define PRINT_SLAVES_VAL 7 
 
 const char* DEVICE_PATH      = "/dev/ttyS3";
 const char* CONFIG_FILE_PATH = "config.json";
@@ -31,17 +32,18 @@ void sigint_handler(int id)
 
 int main()
 {
-    int rc = 0, choice = 0;
+    int rc = 0;
     uint8_t num_of_slaves = 0;
     simple_slave_t* slaves = NULL;
     modbus_t* ctx = NULL;
+    int choice = 0;
 
     uint8_t slave_id = 0;
     uint8_t target_address = 0;
     uint16_t target_value = 0;
     uint8_t* recv_value8 = NULL;
     uint16_t* recv_value16 = NULL;
-    interrogation_response_t resp = NULL;
+    interrogation_response_t* resp = NULL;
 
     /* Add CTRL-C handler */
     signal(SIGINT, sigint_handler);
@@ -64,23 +66,33 @@ int main()
 
     print_slaves(slaves, num_of_slaves);
 
+    /* Interrogate all slaves */
+    /*
+    for(uint8_t i = 0; i < num_of_slaves; i++)
+    {
+        interrogate_slave(slaves[i].id, slaves, num_of_slaves, ctx);
+    }
+    */
+
     while(running)
     {
         fprintf(stdout, "Enter one of the desired commands.\n");
-        fprintf(stdout, "[0] - Slave interrogation\n
-                         [1] - Read coil status\n
-                         [2] - Read discrete input status\n
-                         [3] - Read input register value\n
-                         [4] - Read holding register value\n
-                         [5] - Set coil status\n
-                         [6] - Set holding register value\n\n
-                         Choice: ");
-        fscanf(stdin, "%d\n", &choice);
+        fprintf(stdout, "[0] - Slave interrogation\n"
+                        "[1] - Read coil status\n"
+                        "[2] - Read discrete input status\n"
+                        "[3] - Read input register value\n"
+                        "[4] - Read holding register value\n"
+                        "[5] - Set coil status\n"
+                        "[6] - Set holding register value\n"
+                        "[7] - Print information about slaves\n"
+                        "[8] - Exit program\n\n"
+                        "Choice: ");
+        scanf("%d", &choice);
         switch (choice)
         {
         case SLAVE_INTERROGATION_CMD:
             fprintf(stdout, "Slave ID: ");
-            fscanf(stdin, "%u\n", &slave_id);
+            scanf("%hhu", &slave_id);
             resp = interrogate_slave(slave_id, slaves, num_of_slaves, ctx);
             if(resp == NULL)
             {
@@ -94,9 +106,9 @@ int main()
             break;
         case READ_COIL_CMD:
             fprintf(stdout, "Slave ID: ");
-            fscanf(stdin, "%u\n", &slave_id);
+            scanf("%hhu", &slave_id);
             fprintf(stdout, "Coil address: ");
-            fscanf(stdin, "%u\n", &target_address);
+            scanf("%hhu", &target_address);
             recv_value8 = read_coil(slave_id, target_address, slaves, num_of_slaves, ctx);
             if(recv_value8 == NULL)
             {
@@ -110,9 +122,9 @@ int main()
             break;
         case READ_DISCRETE_INPUT_CMD:
             fprintf(stdout, "Slave ID: ");
-            fscanf(stdin, "%u\n", &slave_id);
+            scanf("%hhu", &slave_id);
             fprintf(stdout, "Discrete input address: ");
-            fscanf(stdin, "%u\n", &target_address);
+            scanf("%hhu", &target_address);
             recv_value8 = read_discrete_input(slave_id, target_address, slaves, num_of_slaves, ctx);
             if(recv_value8 == NULL)
             {
@@ -126,9 +138,9 @@ int main()
             break;
         case READ_INPUT_REGISTER_CMD:
             fprintf(stdout, "Slave ID: ");
-            fscanf(stdin, "%u\n", &slave_id);
+            scanf("%hhu", &slave_id);
             fprintf(stdout, "Input register address: ");
-            fscanf(stdin, "%u\n", &target_address);
+            scanf("%hhu", &target_address);
             recv_value16 = read_input_register(slave_id, target_address, slaves, num_of_slaves, ctx);
             if(recv_value16 == NULL)
             {
@@ -142,9 +154,9 @@ int main()
             break;
         case READ_HOLDING_REGISTER_CMD:
             fprintf(stdout, "Slave ID: ");
-            fscanf(stdin, "%u\n", &slave_id);
+            scanf("%hhu", &slave_id);
             fprintf(stdout, "Holding register address: ");
-            fscanf(stdin, "%u\n", &target_address);
+            scanf("%hhu", &target_address);
             recv_value16 = read_holding_register(slave_id, target_address, slaves, num_of_slaves, ctx);
             if(recv_value16 == NULL)
             {
@@ -158,14 +170,14 @@ int main()
             break;
         case WRITE_COIL_CMD:
             fprintf(stdout, "Slave ID: ");
-            fscanf(stdin, "%u\n", &slave_id);
+            scanf("%hhu", &slave_id);
             fprintf(stdout, "Coil address: ");
-            fscanf(stdin, "%u\n", &target_address);
+            scanf("%hhu", &target_address);
             fprintf(stdout, "Coil value (0, 1): ");
-            fscanf(stdin, "%u\n", &target_value);
+            scanf("%hu", &target_value);
             if(target_value > 0)
             {
-                target_value = COIL_ON_VALUE
+                target_value = COIL_ON_VALUE;
             }
             else
             {
@@ -182,11 +194,11 @@ int main()
             break;
         case WRITE_HOLDING_REGISTER_CMD:
             fprintf(stdout, "Slave ID: ");
-            fscanf(stdin, "%u\n", &slave_id);
+            scanf("%hhu", &slave_id);
             fprintf(stdout, "Holding register address: ");
-            fscanf(stdin, "%u\n", &target_address);
+            scanf("%hhu", &target_address);
             fprintf(stdout, "Holding register value (0 - 65535): ");
-            fscanf(stdin, "%u\n", &target_value);
+            scanf("%hu", &target_value);
             if(write_holding_register(slave_id, target_address, target_value, slaves, num_of_slaves, ctx))
             {
                 fprintf(stdout, "Setting holding register value successful.\n");
@@ -196,12 +208,19 @@ int main()
                 fprintf(stdout, "Setting holding register value failed.\n");
             }
             break;
+        case PRINT_SLAVES_VAL:
+            print_slaves(slaves, num_of_slaves);
+            break;
+        case EXIT_VAL:
+            goto __terminate;
         default:
             fprintf(stdout, "ERROR, non-existent command issued.\n");
             break;
+        }
+        fprintf(stdout, "-------------------------------[PRESS ENTER KEY]-------------------------------");
+        getchar();
         while(getchar() != '\n');
         system("clear");
-        }
     }
 
     __terminate:
