@@ -1,120 +1,172 @@
 {
-    "slaves": 
+    "port":
     [
         {
-            "id": 35,
-            "description": "Temperature sensor",
-            "coils":
+            "value": 1,
+            "active": 0,
+            "slaves":
             [
-                {"address": 0},
-                {"address": 1},
-                {"address": 2}
-            ],
-            "discrete_inputs":
-            [
-                {"address": 0},
-                {"address": 1},
-                {"address": 2}
-            ],
-            "input_registers":
-            [
-                {"address": 0},
-                {"address": 1},
-                {"address": 2}
-            ],
-            "holding_registers":
-            [
-                {"address": 0},
-                {"address": 1},
-                {"address": 2}
+
             ]
         },
 
         {
-            "id": 67,
-            "description": "Motor controller",
-            "coils":
+            "value": 2,
+            "active": 0,
+            "slaves":
             [
-                {"address": 0},
-                {"address": 1},
-                {"address": 2},
-                {"address": 3}
-            ],
-            "discrete_inputs":
-            [
-                {"address": 0},
-                {"address": 1},
-                {"address": 2}
-            ],
-            "input_registers":
-            [
-                {"address": 0},
-                {"address": 1},
-                {"address": 2}
-            ],
-            "holding_registers":
-            [
-                {"address": 0},
-                {"address": 1},
-                {"address": 2}
+
             ]
         },
 
         {
-            "id": 155,
-            "description": "Light sensor",
-            "coils":
+            "value": 3,
+            "active": 1,
+            "slaves": 
             [
-                {"address": 0},
-                {"address": 1},
-                {"address": 2}
-            ],
-            "discrete_inputs":
-            [
-                {"address": 0},
-                {"address": 1},
-                {"address": 2}
-            ],
-            "input_registers":
-            [
-                {"address": 0},
-                {"address": 1},
-                {"address": 2}
-            ],
-            "holding_registers":
-            [
-                {"address": 0},
-                {"address": 1},
-                {"address": 2}
+                {
+                    "id": 35,
+                    "description": "Temperature sensor",
+                    "coils":
+                    [
+                        {"address": 0},
+                        {"address": 1},
+                        {"address": 2}
+                    ],
+                    "discrete_inputs":
+                    [
+                        {"address": 0},
+                        {"address": 1},
+                        {"address": 2}
+                    ],
+                    "input_registers":
+                    [
+                        {"address": 0},
+                        {"address": 1},
+                        {"address": 2}
+                    ],
+                    "holding_registers":
+                    [
+                        {"address": 0},
+                        {"address": 1},
+                        {"address": 2}
+                    ]
+                },
+
+                {
+                    "id": 67,
+                    "description": "Motor controller",
+                    "coils":
+                    [
+                        {"address": 0},
+                        {"address": 1},
+                        {"address": 2},
+                        {"address": 3}
+                    ],
+                    "discrete_inputs":
+                    [
+                        {"address": 0},
+                        {"address": 1},
+                        {"address": 2}
+                    ],
+                    "input_registers":
+                    [
+                        {"address": 0},
+                        {"address": 1},
+                        {"address": 2}
+                    ],
+                    "holding_registers":
+                    [
+                        {"address": 0},
+                        {"address": 1},
+                        {"address": 2}
+                    ]
+                },
+
+                {
+                    "id": 155,
+                    "description": "Light sensor",
+                    "coils":
+                    [
+                        {"address": 0},
+                        {"address": 1},
+                        {"address": 2}
+                    ],
+                    "discrete_inputs":
+                    [
+                        {"address": 0},
+                        {"address": 1},
+                        {"address": 2}
+                    ],
+                    "input_registers":
+                    [
+                        {"address": 0},
+                        {"address": 1},
+                        {"address": 2}
+                    ],
+                    "holding_registers":
+                    [
+                        {"address": 0},
+                        {"address": 1},
+                        {"address": 2}
+                    ]
+                },
+
+                {
+                    "id": 201,
+                    "description": "Pressure sensor",
+                    "coils":
+                    [
+                        {"address": 0},
+                        {"address": 1},
+                        {"address": 2}
+                    ],
+                    "discrete_inputs":
+                    [
+                        {"address": 0},
+                        {"address": 1},
+                        {"address": 2}
+                    ],
+                    "input_registers":
+                    [
+                        {"address": 0},
+                        {"address": 1},
+                        {"address": 2}
+                    ],
+                    "holding_registers":
+                    [
+                        {"address": 0},
+                        {"address": 1},
+                        {"address": 2}
+                    ]
+                }
             ]
         },
 
         {
-            "id": 201,
-            "description": "Pressure sensor",
-            "coils":
+            "value": 4,
+            "active": 0,
+            "slaves":
             [
-                {"address": 0},
-                {"address": 1},
-                {"address": 2}
-            ],
-            "discrete_inputs":
+
+            ]
+        },
+
+        {
+            "value": 5,
+            "active": 0,
+            "slaves":
             [
-                {"address": 0},
-                {"address": 1},
-                {"address": 2}
-            ],
-            "input_registers":
+
+            ]
+        },
+
+        {
+            "value": 6,
+            "active": 0,
+            "slaves":
             [
-                {"address": 0},
-                {"address": 1},
-                {"address": 2}
-            ],
-            "holding_registers":
-            [
-                {"address": 0},
-                {"address": 1},
-                {"address": 2}
+
             ]
         }
     ]

@@ -12,8 +12,8 @@
 #define DATA_BITS 8 
 #define STOP_BITS 2
 
-#define EXIT_VAL 8
 #define PRINT_SLAVES_VAL 7 
+#define EXIT_VAL 8
 
 const char* DEVICE_PATH      = "/dev/ttyS3";
 const char* CONFIG_FILE_PATH = "config.json";

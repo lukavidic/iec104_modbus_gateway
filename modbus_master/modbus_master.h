@@ -92,11 +92,11 @@ uint8_t* parse_address_array(json_t* json_array, uint8_t* count);
  * @brief Function that parses the json config file and searches for slave devices configuration
  * 
  * @param root JSON object representing an opened json config file
- * @param num_of_slaves Reference to the variable holding the count of created slave objects
+ * @param num_of_slaves References to the variables holding the count of created slave objects
  * 
- * @returns Dynamically allocated array of parsed slave device objects or NULL if failure
+ * @returns Dynamically allocated arrays of parsed slave device objects or NULL if failure
  */
-simple_slave_t* parse_slaves(json_t* root, uint8_t* num_of_slaves);
+simple_slave_t** parse_slaves(json_t* root, uint8_t** num_of_slaves);
 
 /**
  * @brief Function that releases the memory allocated for slave device objects
@@ -121,15 +121,16 @@ void free_modbus(modbus_t* ctx);
 void free_interrogation_response(interrogation_response_t* resp);
 
 /**
- * @brief Function that initializes an array of active slave devices derived from
- * configuration file in json format
+ * @brief Function that initializes arrays of active slave devices derived from
+ * configuration file in json format. Each array is formed according to the serial
+ * port configuration corresponding to that array index (see config file).
  * 
  * @param cfg_file Path to the json configuration file
- * @param num_of_slaves Reference to the variable holding the count of created slave objects
+ * @param num_of_slaves References to the variables holding the count of created slave objects
  * 
- * @returns Dynamically allocated array of parsed slave device objects or NULL if failure
+ * @returns Dynamically allocated arrays of parsed slave device objects or NULL if failure
  */
-simple_slave_t* init_slaves(const char* cfg_file, uint8_t* num_of_slaves);
+simple_slave_t** init_slaves(const char* cfg_file, uint8_t** num_of_slaves);
 
 /**
  * @brief Function that initializes modbus connection and creates a modbus context object

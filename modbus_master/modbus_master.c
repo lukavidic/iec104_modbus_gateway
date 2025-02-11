@@ -41,57 +41,90 @@ uint8_t* parse_address_array(json_t* json_array, uint8_t* count)
     return addresses;
 }
 
-simple_slave_t* parse_slaves(json_t* root, uint8_t* num_of_slaves)
+simple_slave_t** parse_slaves(json_t* root, uint8_t** num_of_slaves)
 {
-    json_t* slaves_array = json_object_get(root, "slaves");
-    json_t* slave_obj = NULL;
     uint8_t size = 0;
-    simple_slave_t* slaves = NULL;
+    uint8_t num_of_ports = 0;
+    uint8_t active = 0;
+    uint8_t port_value = 0;
+    simple_slave_t** slaves = NULL;
+    json_t* slaves_array = NULL;
+    json_t* slave_obj = NULL;
+    json_t* port_array = json_object_get(root, "port");
 
-    if (json_is_array(slaves_array) == 0) 
+    if(json_is_array(slaves_array) == 0)
     {
         #ifdef PRINT_DEBUG
-            fprintf(stderr, "Invalid JSON format: 'slaves' is not an array\n");
+            fprintf(stderr, "Invalid JSON format: 'port' is not an array\n");
         #endif
         return NULL;
     }
 
-    size = json_array_size(slaves_array);
-    slaves = (simple_slave_t*)malloc(size * sizeof(simple_slave_t));
-    if (slaves == NULL) 
+    num_of_ports = json_array_size(port_array);
+    slaves = (simple_slave_t**) malloc(num_of_ports * sizeof(simple_slave_t*));
+
+    for(uint8_t j = 0; j < num_of_ports; j++)
     {
-        #ifdef PRINT_DEBUG
-            fprintf(stderr, "Failed to allocate memory for slave device objects.\n");
-        #endif
-        return NULL;
+        active = (uint8_t)json_integer_value(json_object_get(port_array, "active"));
+        port_value = (uint8_t)json_integer_value(json_object_get(port_array, "value"));
+        if(active)
+        {
+            slaves_array = json_object_get(port_array, "slaves");
+            slave_obj = NULL;
+            size = 0;
+
+
+            if (json_is_array(slaves_array) == 0) 
+            {
+                #ifdef PRINT_DEBUG
+                    fprintf(stderr, "Invalid JSON format: 'slaves' is not an array\n");
+                #endif
+                return NULL;
+            }
+
+            size = json_array_size(slaves_array);
+            slaves[j] = (simple_slave_t*) malloc(size * sizeof(simple_slave_t));
+            if (slaves[j] == NULL) 
+            {
+                #ifdef PRINT_DEBUG
+                    fprintf(stderr, "Failed to allocate memory for slave device objects.\n");
+                #endif
+                return NULL;
+            }
+
+            for (uint8_t i = 0; i < size; i++) 
+            {
+                slave_obj = json_array_get(slaves_array, i);
+
+                // Parse ID and description
+                slaves[j][i].id = (uint8_t)json_integer_value(json_object_get(slave_obj, "id"));
+                strncpy(slaves[i].name, json_string_value(json_object_get(slave_obj, "description")), MAX_SLAVE_NAME_LEN);
+
+                // Parse coils addresses
+                json_t* coils_array = json_object_get(slave_obj, "coils");
+                slaves[j][i].coils_addr = parse_address_array(coils_array, &slaves[i].num_of_coils);
+
+                // Parse discrete inputs addresses
+                json_t* discrete_inputs_array = json_object_get(slave_obj, "discrete_inputs");
+                slaves[j][i].discrete_inputs_addr = parse_address_array(discrete_inputs_array, &slaves[j][i].num_of_discrete_inputs);
+
+                // Parse input registers addresses
+                json_t* input_registers_array = json_object_get(slave_obj, "input_registers");
+                slaves[j][i].input_registers_addr = parse_address_array(input_registers_array, &slaves[j][i].num_of_input_registers);
+
+                // Parse holding registers addresses
+                json_t* holding_registers_array = json_object_get(slave_obj, "holding_registers");
+                slaves[j][i].holding_registers_addr = parse_address_array(holding_registers_array, &slaves[j][i].num_of_holding_registers);
+            }
+
+            *num_of_slaves[j] = size;
+        }
+        else
+        {
+            slaves[j] = NULL;
+            *num_of_slaves[j] = 0;
+        }
     }
-
-    for (uint8_t i = 0; i < size; i++) 
-    {
-        slave_obj = json_array_get(slaves_array, i);
-
-        // Parse ID and description
-        slaves[i].id = (uint8_t)json_integer_value(json_object_get(slave_obj, "id"));
-        strncpy(slaves[i].name, json_string_value(json_object_get(slave_obj, "description")), MAX_SLAVE_NAME_LEN);
-
-        // Parse coils addresses
-        json_t* coils_array = json_object_get(slave_obj, "coils");
-        slaves[i].coils_addr = parse_address_array(coils_array, &slaves[i].num_of_coils);
-
-        // Parse discrete inputs addresses
-        json_t* discrete_inputs_array = json_object_get(slave_obj, "discrete_inputs");
-        slaves[i].discrete_inputs_addr = parse_address_array(discrete_inputs_array, &slaves[i].num_of_discrete_inputs);
-
-        // Parse input registers addresses
-        json_t* input_registers_array = json_object_get(slave_obj, "input_registers");
-        slaves[i].input_registers_addr = parse_address_array(input_registers_array, &slaves[i].num_of_input_registers);
-
-        // Parse holding registers addresses
-        json_t* holding_registers_array = json_object_get(slave_obj, "holding_registers");
-        slaves[i].holding_registers_addr = parse_address_array(holding_registers_array, &slaves[i].num_of_holding_registers);
-    }
-
-    *num_of_slaves = size;
     return slaves;
 }
 
@@ -122,9 +155,9 @@ void free_interrogation_response(interrogation_response_t* resp)
     free(resp);
 }
 
-simple_slave_t* init_slaves(const char* cfg_file, uint8_t* num_of_slaves)
+simple_slave_t** init_slaves(const char* cfg_file, uint8_t** num_of_slaves)
 {
-    simple_slave_t* slaves = NULL;
+    simple_slave_t** slaves = NULL;
     json_error_t error;
 
     json_t* root = json_load_file(cfg_file, 0, &error);
