@@ -41,7 +41,7 @@ uint8_t* parse_address_array(json_t* json_array, uint8_t* count)
     return addresses;
 }
 
-simple_slave_t** parse_slaves(json_t* root, uint8_t** num_of_slaves)
+simple_slave_t** parse_slaves(json_t* root, uint8_t* num_of_slaves)
 {
     uint8_t size = 0;
     uint8_t num_of_ports = 0;
@@ -50,9 +50,10 @@ simple_slave_t** parse_slaves(json_t* root, uint8_t** num_of_slaves)
     simple_slave_t** slaves = NULL;
     json_t* slaves_array = NULL;
     json_t* slave_obj = NULL;
+    json_t* port_obj = NULL;
     json_t* port_array = json_object_get(root, "port");
 
-    if(json_is_array(slaves_array) == 0)
+    if(json_is_array(port_array) == 0)
     {
         #ifdef PRINT_DEBUG
             fprintf(stderr, "Invalid JSON format: 'port' is not an array\n");
@@ -65,11 +66,13 @@ simple_slave_t** parse_slaves(json_t* root, uint8_t** num_of_slaves)
 
     for(uint8_t j = 0; j < num_of_ports; j++)
     {
-        active = (uint8_t)json_integer_value(json_object_get(port_array, "active"));
-        port_value = (uint8_t)json_integer_value(json_object_get(port_array, "value"));
+        port_obj = json_array_get(port_array, j);
+        active = (uint8_t)json_integer_value(json_object_get(port_obj, "active"));
+        port_value = (uint8_t)json_integer_value(json_object_get(port_obj, "value"));
+        //fprintf(stdout, "Port value: %u, active: %u\n", port_value, active);
         if(active)
         {
-            slaves_array = json_object_get(port_array, "slaves");
+            slaves_array = json_object_get(port_obj, "slaves");
             slave_obj = NULL;
             size = 0;
 
@@ -97,12 +100,12 @@ simple_slave_t** parse_slaves(json_t* root, uint8_t** num_of_slaves)
                 slave_obj = json_array_get(slaves_array, i);
 
                 // Parse ID and description
-                slaves[j][i].id = (uint8_t)json_integer_value(json_object_get(slave_obj, "id"));
-                strncpy(slaves[i].name, json_string_value(json_object_get(slave_obj, "description")), MAX_SLAVE_NAME_LEN);
+                slaves[j][i].id = port_value * OFFSET_BY_PORT + (uint8_t)json_integer_value(json_object_get(slave_obj, "id"));
+                strncpy(slaves[j][i].name, json_string_value(json_object_get(slave_obj, "description")), MAX_SLAVE_NAME_LEN);
 
                 // Parse coils addresses
                 json_t* coils_array = json_object_get(slave_obj, "coils");
-                slaves[j][i].coils_addr = parse_address_array(coils_array, &slaves[i].num_of_coils);
+                slaves[j][i].coils_addr = parse_address_array(coils_array, &slaves[j][i].num_of_coils);
 
                 // Parse discrete inputs addresses
                 json_t* discrete_inputs_array = json_object_get(slave_obj, "discrete_inputs");
@@ -117,33 +120,49 @@ simple_slave_t** parse_slaves(json_t* root, uint8_t** num_of_slaves)
                 slaves[j][i].holding_registers_addr = parse_address_array(holding_registers_array, &slaves[j][i].num_of_holding_registers);
             }
 
-            *num_of_slaves[j] = size;
+            num_of_slaves[j] = size;
         }
         else
         {
             slaves[j] = NULL;
-            *num_of_slaves[j] = 0;
+            num_of_slaves[j] = 0;
         }
     }
     return slaves;
 }
 
-void free_slaves(simple_slave_t* slaves, uint8_t num_of_slaves) 
+void free_slaves(simple_slave_t** slaves, uint8_t* num_of_slaves) 
 {
-    for (uint8_t i = 0; i < num_of_slaves; i++) 
+    for(uint8_t j = 0; j < MAX_SERIAL_PORTS; j++)
     {
-        free(slaves[i].coils_addr);
-        free(slaves[i].discrete_inputs_addr);
-        free(slaves[i].input_registers_addr);
-        free(slaves[i].holding_registers_addr);
+        if(slaves[j] != NULL)
+            {
+            for (uint8_t i = 0; i < num_of_slaves[j]; i++) 
+            {
+                free(slaves[j][i].coils_addr);
+                free(slaves[j][i].discrete_inputs_addr);
+                free(slaves[j][i].input_registers_addr);
+                free(slaves[j][i].holding_registers_addr);
+            }
+            free(slaves[j]);
+        }
     }
     free(slaves);
 }
 
-void free_modbus(modbus_t* ctx)
+void free_modbus(modbus_t** ctx)
 {
-    modbus_close(ctx);
-    modbus_free(ctx);
+    if(ctx != NULL)
+    {
+        for(uint8_t i = 0; i < MAX_SERIAL_PORTS; i++)
+        {
+            if(ctx[i] != NULL)
+            {
+                modbus_close(ctx[i]);
+                modbus_free(ctx[i]);
+            }
+        }
+    }
 }
 
 void free_interrogation_response(interrogation_response_t* resp)
@@ -155,7 +174,7 @@ void free_interrogation_response(interrogation_response_t* resp)
     free(resp);
 }
 
-simple_slave_t** init_slaves(const char* cfg_file, uint8_t** num_of_slaves)
+simple_slave_t** init_slaves(const char* cfg_file, uint8_t* num_of_slaves)
 {
     simple_slave_t** slaves = NULL;
     json_error_t error;
@@ -213,64 +232,70 @@ modbus_t* init_modbus_connection(const char* dev_path, uint32_t baud, uint8_t pa
     return ctx;
 }
 
-void print_slaves(simple_slave_t* slaves, uint8_t num_of_slaves)
+void print_slaves(simple_slave_t** slaves, uint8_t* num_of_slaves)
 {
-    uint8_t i, j;
-    for(i = 0; i < num_of_slaves; i++)
+    uint8_t i, j, k;
+    for(k = 0; k < MAX_SERIAL_PORTS; k++)
     {
-        fprintf(stdout, "Slave description: %s\n", slaves[i].name);
-
-        fprintf(stdout, "ID: %u\n", slaves[i].id);
-
-        fprintf(stdout, "Coil addresses: [");
-        for(j = 0; j < slaves[i].num_of_coils; j++)
+        fprintf(stdout, "----------------- SERIAL PORT %u -----------------\n\n", k + 1);
+        if(slaves[k] != NULL)
         {
-            fprintf(stdout, "%u", slaves[i].coils_addr[j]);
-            if(j != slaves[i].num_of_coils - 1)
+            for(i = 0; i < num_of_slaves[k]; i++)
             {
-                fprintf(stdout, ", ");
+                fprintf(stdout, "Slave description: %s\n", slaves[k][i].name);
+
+                fprintf(stdout, "ID: %u\n", slaves[k][i].id);
+
+                fprintf(stdout, "Coil addresses: [");
+                for(j = 0; j < slaves[k][i].num_of_coils; j++)
+                {
+                    fprintf(stdout, "%u", slaves[k][i].coils_addr[j]);
+                    if(j != slaves[k][i].num_of_coils - 1)
+                    {
+                        fprintf(stdout, ", ");
+                    }
+                }
+                fprintf(stdout, "]\n");
+
+                fprintf(stdout, "Discrete inputs addresses: [");
+                for(j = 0; j < slaves[k][i].num_of_discrete_inputs; j++)
+                {
+                    fprintf(stdout, "%u", slaves[k][i].discrete_inputs_addr[j]);
+                    if(j != slaves[k][i].num_of_discrete_inputs - 1)
+                    {
+                        fprintf(stdout, ", ");
+                    }
+                }
+                fprintf(stdout, "]\n");
+
+                fprintf(stdout, "Input registers addresses: [");
+                for(j = 0; j < slaves[k][i].num_of_input_registers; j++)
+                {
+                    fprintf(stdout, "%u", slaves[k][i].input_registers_addr[j]);
+                    if(j != slaves[k][i].num_of_input_registers - 1)
+                    {
+                        fprintf(stdout, ", ");
+                    }
+                }
+                fprintf(stdout, "]\n");
+
+                fprintf(stdout, "Holding registers addresses: [");
+                for(j = 0; j < slaves[k][i].num_of_holding_registers; j++)
+                {
+                    fprintf(stdout, "%u", slaves[k][i].holding_registers_addr[j]);
+                    if(j != slaves[k][i].num_of_holding_registers - 1)
+                    {
+                        fprintf(stdout, ", ");
+                    }
+                }
+                fprintf(stdout, "]\n\n");
             }
         }
-        fprintf(stdout, "]\n");
-
-        fprintf(stdout, "Discrete inputs addresses: [");
-        for(j = 0; j < slaves[i].num_of_discrete_inputs; j++)
-        {
-            fprintf(stdout, "%u", slaves[i].discrete_inputs_addr[j]);
-            if(j != slaves[i].num_of_discrete_inputs - 1)
-            {
-                fprintf(stdout, ", ");
-            }
-        }
-        fprintf(stdout, "]\n");
-
-        fprintf(stdout, "Input registers addresses: [");
-        for(j = 0; j < slaves[i].num_of_input_registers; j++)
-        {
-            fprintf(stdout, "%u", slaves[i].input_registers_addr[j]);
-            if(j != slaves[i].num_of_input_registers - 1)
-            {
-                fprintf(stdout, ", ");
-            }
-        }
-        fprintf(stdout, "]\n");
-
-        fprintf(stdout, "Holding registers addresses: [");
-        for(j = 0; j < slaves[i].num_of_holding_registers; j++)
-        {
-            fprintf(stdout, "%u", slaves[i].holding_registers_addr[j]);
-            if(j != slaves[i].num_of_holding_registers - 1)
-            {
-                fprintf(stdout, ", ");
-            }
-        }
-        fprintf(stdout, "]\n");
-        
-        fprintf(stdout, "\n\n");
+        fprintf(stdout, "--------------------------------------------------\n\n");
     }
 }
 
-uint8_t get_slave_idx(uint8_t slave_id, simple_slave_t* slaves, uint8_t num_of_slaves)
+uint8_t get_slave_idx(uint16_t slave_id, simple_slave_t* slaves, uint8_t num_of_slaves)
 {
     uint8_t idx;
     
@@ -284,22 +309,31 @@ uint8_t get_slave_idx(uint8_t slave_id, simple_slave_t* slaves, uint8_t num_of_s
     return num_of_slaves;
 }
 
-interrogation_response_t* interrogate_slave(uint8_t slave_id, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx)
+interrogation_response_t* interrogate_slave(uint16_t slave_id, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx)
 {
     interrogation_response_t* resp = NULL;
     uint8_t idx = 0;
     uint8_t addr = 0;
+    uint8_t real_slave_id = (uint8_t)(slave_id - ((uint16_t)(slave_id / OFFSET_BY_PORT)) * OFFSET_BY_PORT); 
+
+    if(slaves == NULL)
+    {
+        #ifdef PRINT_DEBUG
+            fprintf(stderr, "Failed to interrogate slave, slave object is NULL.\n");
+        #endif
+        return NULL;
+    }
 
     idx = get_slave_idx(slave_id, slaves, num_of_slaves);
 
     if(idx >= num_of_slaves)
     {
         #ifdef PRINT_DEBUG
-            fprintf(stderr, "Failed to interrogate slave, invalid slave ID: %u.\n", slave_id);
+            fprintf(stderr, "Failed to interrogate slave, invalid slave ID.\n");
         #endif
         return NULL;
     }
-    modbus_set_slave(ctx, slave_id);
+    modbus_set_slave(ctx, real_slave_id);
 
     resp = (interrogation_response_t*) malloc(sizeof(interrogation_response_t));
     if(resp == NULL)
@@ -329,7 +363,7 @@ interrogation_response_t* interrogate_slave(uint8_t slave_id, simple_slave_t* sl
     resp->num_of_holding_registers = slaves[idx].num_of_holding_registers;
 
     #ifdef PRINT_DEBUG
-        fprintf(stdout, "\n------ Interrogation start -------\nSlave id: %u\nSlave description: %s\n", slaves[idx].id, slaves[idx].name);
+        fprintf(stdout, "\n------ Interrogation start -------\n\nSlave id: %u\nSlave description: %s\n", slaves[idx].id, slaves[idx].name);
     #endif
 
     #ifdef PRINT_DEBUG
@@ -399,22 +433,31 @@ interrogation_response_t* interrogate_slave(uint8_t slave_id, simple_slave_t* sl
     return resp;
 }
 
-uint8_t* read_coil(uint8_t slave_id, uint8_t coil_addr, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx)
+uint8_t* read_coil(uint16_t slave_id, uint8_t coil_addr, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx)
 {
     uint8_t idx = 0;
     uint8_t* res = NULL;
+    uint8_t real_slave_id = (uint8_t)(slave_id - ((uint16_t)(slave_id / OFFSET_BY_PORT)) * OFFSET_BY_PORT); 
+
+    if(slaves == NULL)
+    {
+        #ifdef PRINT_DEBUG
+            fprintf(stderr, "Failed to read coil status, slave object is NULL.\n");
+        #endif
+        return NULL;
+    }
 
     idx = get_slave_idx(slave_id, slaves, num_of_slaves);
 
     if(idx >= num_of_slaves)
     {
         #ifdef PRINT_DEBUG
-            fprintf(stderr, "Failed to read coil, invalid slave ID.\n");
+            fprintf(stderr, "Failed to read coil status, invalid slave ID.\n");
         #endif
         return NULL;
     }
 
-    modbus_set_slave(ctx, slave_id);
+    modbus_set_slave(ctx, real_slave_id);
     for(uint8_t i = 0; i < slaves[idx].num_of_coils; i++)
     {
         if(slaves[idx].coils_addr[i] == coil_addr)
@@ -429,25 +472,41 @@ uint8_t* read_coil(uint8_t slave_id, uint8_t coil_addr, simple_slave_t* slaves, 
         }
     }
 
+    #ifdef PRINT_DEBUG
+        if(res == NULL)
+        {
+            fprintf(stderr, "Failed to read coil status, invalid coil address.\n");
+        }
+    #endif
+
     return res;
 }
 
-uint8_t* read_discrete_input(uint8_t slave_id, uint8_t discrete_input_addr, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx)
+uint8_t* read_discrete_input(uint16_t slave_id, uint8_t discrete_input_addr, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx)
 {
     uint8_t idx = 0;
     uint8_t* res = NULL;
+    uint8_t real_slave_id = (uint8_t)(slave_id - ((uint16_t)(slave_id / OFFSET_BY_PORT)) * OFFSET_BY_PORT); 
+
+    if(slaves == NULL)
+    {
+        #ifdef PRINT_DEBUG
+            fprintf(stderr, "Failed to read discrete input status, slave object is NULL.\n");
+        #endif
+        return NULL;
+    }
 
     idx = get_slave_idx(slave_id, slaves, num_of_slaves);
 
     if(idx >= num_of_slaves)
     {
         #ifdef PRINT_DEBUG
-            fprintf(stderr, "Failed to read discrete input, invalid slave ID.\n");
+            fprintf(stderr, "Failed to read discrete input status, invalid slave ID.\n");
         #endif
         return NULL;
     }
 
-    modbus_set_slave(ctx, slave_id);
+    modbus_set_slave(ctx, real_slave_id);
     for(uint8_t i = 0; i < slaves[idx].num_of_discrete_inputs; i++)
     {
         if(slaves[idx].discrete_inputs_addr[i] == discrete_input_addr)
@@ -462,25 +521,41 @@ uint8_t* read_discrete_input(uint8_t slave_id, uint8_t discrete_input_addr, simp
         }
     }
 
+    #ifdef PRINT_DEBUG
+        if(res == NULL)
+        {
+            fprintf(stderr, "Failed to read discrete input status, invalid discrete input address.\n");
+        }
+    #endif
+
     return res;
 }
 
-uint16_t* read_input_register(uint8_t slave_id, uint8_t input_reg_addr, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx)
+uint16_t* read_input_register(uint16_t slave_id, uint8_t input_reg_addr, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx)
 {
     uint8_t idx = 0;
     uint16_t* res = NULL;
+    uint8_t real_slave_id = (uint8_t)(slave_id - ((uint16_t)(slave_id / OFFSET_BY_PORT)) * OFFSET_BY_PORT); 
+
+    if(slaves == NULL)
+    {
+        #ifdef PRINT_DEBUG
+            fprintf(stderr, "Failed to read input register value, slave object is NULL.\n");
+        #endif
+        return NULL;
+    }
 
     idx = get_slave_idx(slave_id, slaves, num_of_slaves);
 
     if(idx >= num_of_slaves)
     {
         #ifdef PRINT_DEBUG
-            fprintf(stderr, "Failed to read input register, invalid slave ID.\n");
+            fprintf(stderr, "Failed to read input register value, invalid slave ID.\n");
         #endif
         return NULL;
     }
 
-    modbus_set_slave(ctx, slave_id);
+    modbus_set_slave(ctx, real_slave_id);
     for(uint8_t i = 0; i < slaves[idx].num_of_input_registers; i++)
     {
         if(slaves[idx].input_registers_addr[i] == input_reg_addr)
@@ -495,25 +570,41 @@ uint16_t* read_input_register(uint8_t slave_id, uint8_t input_reg_addr, simple_s
         }
     }
 
+    #ifdef PRINT_DEBUG
+        if(res == NULL)
+        {
+            fprintf(stderr, "Failed to read input register value, invalid input register address.\n");
+        }
+    #endif
+
     return res;
 }
 
-uint16_t* read_holding_register(uint8_t slave_id, uint8_t holding_reg_addr, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx)
+uint16_t* read_holding_register(uint16_t slave_id, uint8_t holding_reg_addr, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx)
 {
     uint8_t idx = 0;
     uint16_t* res = NULL;
+    uint8_t real_slave_id = (uint8_t)(slave_id - ((uint16_t)(slave_id / OFFSET_BY_PORT)) * OFFSET_BY_PORT); 
+
+    if(slaves == NULL)
+    {
+        #ifdef PRINT_DEBUG
+            fprintf(stderr, "Failed to read holding register, slave object is NULL.\n");
+        #endif
+        return NULL;
+    }
 
     idx = get_slave_idx(slave_id, slaves, num_of_slaves);
 
     if(idx >= num_of_slaves)
     {
         #ifdef PRINT_DEBUG
-            fprintf(stderr, "Failed to read holding register, invalid slave ID.\n");
+            fprintf(stderr, "Failed to read holding register value, invalid slave ID.\n");
         #endif
         return NULL;
     }
 
-    modbus_set_slave(ctx, slave_id);
+    modbus_set_slave(ctx, real_slave_id);
     for(uint8_t i = 0; i < slaves[idx].num_of_holding_registers; i++)
     {
         if(slaves[idx].holding_registers_addr[i] == holding_reg_addr)
@@ -528,12 +619,30 @@ uint16_t* read_holding_register(uint8_t slave_id, uint8_t holding_reg_addr, simp
         }
     }
 
+    #ifdef PRINT_DEBUG
+        if(res == NULL)
+        {
+            fprintf(stderr, "Failed to read holding register value, invalid holding register address.\n");
+        }
+    #endif
+
     return res;
 }
 
-uint8_t write_coil(uint8_t slave_id, uint8_t coil_addr, uint8_t coil_value, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx)
+uint8_t write_coil(uint16_t slave_id, uint8_t coil_addr, uint8_t coil_value, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx)
 {
-    uint8_t idx = get_slave_idx(slave_id, slaves, num_of_slaves);
+    uint8_t idx = 0;
+    uint8_t real_slave_id = (uint8_t)(slave_id - ((uint16_t)(slave_id / OFFSET_BY_PORT)) * OFFSET_BY_PORT); 
+
+    if(slaves == NULL)
+    {
+        #ifdef PRINT_DEBUG
+            fprintf(stderr, "Failed to set coil status, slave object is NULL.\n");
+        #endif
+        return 0;
+    }
+
+    idx = get_slave_idx(slave_id, slaves, num_of_slaves);
 
     if(idx >= num_of_slaves)
     {
@@ -543,7 +652,7 @@ uint8_t write_coil(uint8_t slave_id, uint8_t coil_addr, uint8_t coil_value, simp
         return 0;
     }
 
-    modbus_set_slave(ctx, slave_id);
+    modbus_set_slave(ctx, real_slave_id);
     for(uint8_t i = 0; i < slaves[idx].num_of_coils; i++)
     {
         if(slaves[idx].coils_addr[i] == coil_addr)
@@ -557,13 +666,28 @@ uint8_t write_coil(uint8_t slave_id, uint8_t coil_addr, uint8_t coil_value, simp
         }
     }
     
+    #ifdef PRINT_DEBUG
+        fprintf(stderr, "Failed to set coil status, invalid coil address.\n");
+    #endif
+
     return 0;
 }
 
-uint8_t write_holding_register(uint8_t slave_id, uint8_t holding_reg_addr, uint16_t holding_reg_value, simple_slave_t* slaves, 
+uint8_t write_holding_register(uint16_t slave_id, uint8_t holding_reg_addr, uint16_t holding_reg_value, simple_slave_t* slaves, 
                                uint8_t num_of_slaves, modbus_t* ctx)
 {
-    uint8_t idx = get_slave_idx(slave_id, slaves, num_of_slaves);
+    uint8_t idx = 0;
+    uint8_t real_slave_id = (uint8_t)(slave_id - ((uint16_t)(slave_id / OFFSET_BY_PORT)) * OFFSET_BY_PORT); 
+
+    if(slaves == NULL)
+    {
+        #ifdef PRINT_DEBUG
+            fprintf(stderr, "Failed to set holding register value, slave object is NULL.\n");
+        #endif
+        return 0;
+    }
+
+    idx = get_slave_idx(slave_id, slaves, num_of_slaves);
 
     if(idx >= num_of_slaves)
     {
@@ -573,7 +697,7 @@ uint8_t write_holding_register(uint8_t slave_id, uint8_t holding_reg_addr, uint1
         return 0;
     }
 
-    modbus_set_slave(ctx, slave_id);
+    modbus_set_slave(ctx, real_slave_id);
     for(uint8_t i = 0; i < slaves[idx].num_of_holding_registers; i++)
     {
         if(slaves[idx].holding_registers_addr[i] == holding_reg_addr)
@@ -586,7 +710,11 @@ uint8_t write_holding_register(uint8_t slave_id, uint8_t holding_reg_addr, uint1
             return 1;
         }
     }
-    
+
+    #ifdef PRINT_DEBUG
+        fprintf(stderr, "Failed to set holding register value, invalid holding register address.\n");
+    #endif
+
     return 0;
 }
 

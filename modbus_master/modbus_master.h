@@ -15,6 +15,8 @@
 
 #define MAX_SLAVE_NAME_LEN 64
 #define RESPONSE_TIMEOUT 100000
+#define MAX_SERIAL_PORTS 6
+#define OFFSET_BY_PORT 1000
 
 #define COIL_ON_VALUE  1
 #define COIL_OFF_VALUE 0
@@ -32,7 +34,7 @@
  */
 typedef struct simple_slave 
 {
-    uint8_t id;
+    uint16_t id;
     char name[MAX_SLAVE_NAME_LEN];
     uint8_t num_of_coils;
     uint8_t* coils_addr;
@@ -73,9 +75,9 @@ typedef struct interrogation_response
 typedef struct master_command
 {
     uint8_t command_type;
-    uint8_t slave_id;
     uint8_t target_addr;
     uint8_t target_value;
+    uint16_t slave_id;
 } master_command_t;
 
 /**
@@ -96,7 +98,7 @@ uint8_t* parse_address_array(json_t* json_array, uint8_t* count);
  * 
  * @returns Dynamically allocated arrays of parsed slave device objects or NULL if failure
  */
-simple_slave_t** parse_slaves(json_t* root, uint8_t** num_of_slaves);
+simple_slave_t** parse_slaves(json_t* root, uint8_t* num_of_slaves);
 
 /**
  * @brief Function that releases the memory allocated for slave device objects
@@ -104,14 +106,14 @@ simple_slave_t** parse_slaves(json_t* root, uint8_t** num_of_slaves);
  * @param slaves The array of existing slaves
  * @param num_of_slaves Number of allocated slave objects
  */
-void free_slaves(simple_slave_t* slaves, uint8_t num_of_slaves);
+void free_slaves(simple_slave_t** slaves, uint8_t* num_of_slaves);
 
 /**
- * @brief Function that releases memory used by modbus context object and modbus connection
+ * @brief Function that releases memory used by modbus context objects and modbus connections
  * 
  * @param ctx Modbus context object used for releasing
  */
-void free_modbus(modbus_t* ctx);
+void free_modbus(modbus_t** ctx);
 
 /**
  * @brief Function that releases memory used to store interrogation response data
@@ -126,11 +128,11 @@ void free_interrogation_response(interrogation_response_t* resp);
  * port configuration corresponding to that array index (see config file).
  * 
  * @param cfg_file Path to the json configuration file
- * @param num_of_slaves References to the variables holding the count of created slave objects
+ * @param num_of_slaves Array of variables holding the count of created slave objects
  * 
  * @returns Dynamically allocated arrays of parsed slave device objects or NULL if failure
  */
-simple_slave_t** init_slaves(const char* cfg_file, uint8_t** num_of_slaves);
+simple_slave_t** init_slaves(const char* cfg_file, uint8_t* num_of_slaves);
 
 /**
  * @brief Function that initializes modbus connection and creates a modbus context object
@@ -148,10 +150,10 @@ modbus_t* init_modbus_connection(const char* dev_path, uint32_t baud, uint8_t pa
 /**
  * @brief Function to print the information about slave devices found in config file
  * 
- * @param slaves The array of existing slaves
- * @param num_of_slaves Number of allocated slave objects
+ * @param slaves The arrays of existing slaves
+ * @param num_of_slaves Number of allocated slave objects for each array
  */
-void print_slaves(simple_slave_t* slaves, uint8_t num_of_slaves);
+void print_slaves(simple_slave_t** slaves, uint8_t* num_of_slaves);
 
 /**
  * @brief Function that retreives index of a slave with the given ID from the slave array
@@ -163,7 +165,7 @@ void print_slaves(simple_slave_t* slaves, uint8_t num_of_slaves);
  * @return Index of slave from slave array that matches with given ID or num_of_slaves 
  * value if no matching slave is found 
  */
-uint8_t get_slave_idx(uint8_t slave_id, simple_slave_t* slaves, uint8_t num_of_slaves);
+uint8_t get_slave_idx(uint16_t slave_id, simple_slave_t* slaves, uint8_t num_of_slaves);
 
 /**
  * @brief Function that gathers data of all coils, inputs and registers of the specified slave
@@ -175,7 +177,7 @@ uint8_t get_slave_idx(uint8_t slave_id, simple_slave_t* slaves, uint8_t num_of_s
  * 
  * @returns Dynamically allocated and filled interrogation response structure or NULL if failure
  */
-interrogation_response_t* interrogate_slave(uint8_t slave_id, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx);
+interrogation_response_t* interrogate_slave(uint16_t slave_id, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx);
 
 /**
  * @brief Function that reads status of one coil
@@ -188,7 +190,7 @@ interrogation_response_t* interrogate_slave(uint8_t slave_id, simple_slave_t* sl
  * 
  * @returns Dynamically allocated variable holding the status of a coil or NULL if failure
  */
-uint8_t* read_coil(uint8_t slave_id, uint8_t coil_addr, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx);
+uint8_t* read_coil(uint16_t slave_id, uint8_t coil_addr, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx);
 
 /**
  * @brief Function that reads status of one discrete input
@@ -201,7 +203,7 @@ uint8_t* read_coil(uint8_t slave_id, uint8_t coil_addr, simple_slave_t* slaves, 
  * 
  * @returns Dynamically allocated variable holding the status of a discrete input or NULL if failure
  */
-uint8_t* read_discrete_input(uint8_t slave_id, uint8_t discrete_input_addr, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx);
+uint8_t* read_discrete_input(uint16_t slave_id, uint8_t discrete_input_addr, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx);
 
 /**
  * @brief Function that reads value from one input register
@@ -214,7 +216,7 @@ uint8_t* read_discrete_input(uint8_t slave_id, uint8_t discrete_input_addr, simp
  * 
  * @returns Dynamically allocated variable holding the value of an input register or NULL if failure
  */
-uint16_t* read_input_register(uint8_t slave_id, uint8_t input_reg_addr, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx);
+uint16_t* read_input_register(uint16_t slave_id, uint8_t input_reg_addr, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx);
 
 /**
  * @brief Function that reads value from one holding register
@@ -227,7 +229,7 @@ uint16_t* read_input_register(uint8_t slave_id, uint8_t input_reg_addr, simple_s
  * 
  * @returns Dynamically allocated variable holding the value of a holding register or NULL if failure
  */
-uint16_t* read_holding_register(uint8_t slave_id, uint8_t holding_reg_addr, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx);
+uint16_t* read_holding_register(uint16_t slave_id, uint8_t holding_reg_addr, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx);
 
 /**
  * @brief Function that sets state of one coil
@@ -241,7 +243,7 @@ uint16_t* read_holding_register(uint8_t slave_id, uint8_t holding_reg_addr, simp
  * 
  * @returns 1 on succes, 0 on failure
  */
-uint8_t write_coil(uint8_t slave_id, uint8_t coil_addr, uint8_t coil_value, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx);
+uint8_t write_coil(uint16_t slave_id, uint8_t coil_addr, uint8_t coil_value, simple_slave_t* slaves, uint8_t num_of_slaves, modbus_t* ctx);
 
 /**
  * @brief Function that writes value to one holding register
@@ -255,7 +257,7 @@ uint8_t write_coil(uint8_t slave_id, uint8_t coil_addr, uint8_t coil_value, simp
  * 
  * @returns 1 on succes, 0 on failure
  */
-uint8_t write_holding_register(uint8_t slave_id, uint8_t holding_reg_addr, uint16_t holding_reg_value, simple_slave_t* slaves, 
+uint8_t write_holding_register(uint16_t slave_id, uint8_t holding_reg_addr, uint16_t holding_reg_value, simple_slave_t* slaves, 
                                uint8_t num_of_slaves, modbus_t* ctx);
 
 
