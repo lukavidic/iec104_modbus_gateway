@@ -4,6 +4,10 @@
         {
             "value": 1,
             "active": 0,
+            "baud_rate": 0,
+            "data_bits": 0,
+            "stop_bits": 0,
+            "parity": 0,
             "slaves":
             [
 
@@ -13,6 +17,10 @@
         {
             "value": 2,
             "active": 0,
+            "baud_rate": 0,
+            "data_bits": 0,
+            "stop_bits": 0,
+            "parity": 0,
             "slaves":
             [
 
@@ -22,6 +30,10 @@
         {
             "value": 3,
             "active": 1,
+            "baud_rate": 19200,
+            "data_bits": 8,
+            "stop_bits": 2,
+            "parity": 0,
             "slaves": 
             [
                 {
@@ -145,16 +157,139 @@
 
         {
             "value": 4,
-            "active": 0,
+            "active": 1,
+            "baud_rate": 9600,
+            "data_bits": 8,
+            "stop_bits": 2,
+            "parity": 0,
             "slaves":
             [
+                {
+                    "id": 22,
+                    "description": "Humidty sensor",
+                    "coils":
+                    [
+                        {"address": 0},
+                        {"address": 1},
+                        {"address": 2}
+                    ],
+                    "discrete_inputs":
+                    [
+                        {"address": 0},
+                        {"address": 1},
+                        {"address": 2}
+                    ],
+                    "input_registers":
+                    [
+                        {"address": 0},
+                        {"address": 1},
+                        {"address": 2}
+                    ],
+                    "holding_registers":
+                    [
+                        {"address": 0},
+                        {"address": 1},
+                        {"address": 2}
+                    ]
+                },
 
+                {
+                    "id": 112,
+                    "description": "Flow meter",
+                    "coils":
+                    [
+                        {"address": 0},
+                        {"address": 1},
+                        {"address": 2}
+                    ],
+                    "discrete_inputs":
+                    [
+                        {"address": 0},
+                        {"address": 1},
+                        {"address": 2}
+                    ],
+                    "input_registers":
+                    [
+                        {"address": 0},
+                        {"address": 1},
+                        {"address": 2}
+                    ],
+                    "holding_registers":
+                    [
+                        {"address": 0},
+                        {"address": 1},
+                        {"address": 2}
+                    ]
+                },
+
+                {
+                    "id": 155,
+                    "description": "Level sensor",
+                    "coils":
+                    [
+                        {"address": 0},
+                        {"address": 1},
+                        {"address": 2}
+                    ],
+                    "discrete_inputs":
+                    [
+                        {"address": 0},
+                        {"address": 1},
+                        {"address": 2}
+                    ],
+                    "input_registers":
+                    [
+                        {"address": 0},
+                        {"address": 1},
+                        {"address": 2}
+                    ],
+                    "holding_registers":
+                    [
+                        {"address": 0},
+                        {"address": 1},
+                        {"address": 2}
+                    ]
+                },
+
+                {
+                    "id": 238,
+                    "description": "Valve controller",
+                    "coils":
+                    [
+                        {"address": 0},
+                        {"address": 1},
+                        {"address": 2},
+                        {"address": 3}
+                    ],
+                    "discrete_inputs":
+                    [
+                        {"address": 0},
+                        {"address": 1},
+                        {"address": 2}
+                    ],
+                    "input_registers":
+                    [
+                        {"address": 0},
+                        {"address": 1},
+                        {"address": 2}
+                    ],
+                    "holding_registers":
+                    [
+                        {"address": 0},
+                        {"address": 1},
+                        {"address": 2}
+                    ]
+                }
             ]
         },
 
         {
             "value": 5,
             "active": 0,
+            "baud_rate": 0,
+            "data_bits": 0,
+            "stop_bits": 0,
+            "parity": 0,
             "slaves":
             [
 
@@ -164,6 +299,10 @@
         {
             "value": 6,
             "active": 0,
+            "baud_rate": 0,
+            "data_bits": 0,
+            "stop_bits": 0,
+            "parity": 0,
             "slaves":
             [
 

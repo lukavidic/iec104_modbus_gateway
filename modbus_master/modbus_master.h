@@ -15,7 +15,7 @@
 
 #define MAX_SLAVE_NAME_LEN 64
 #define RESPONSE_TIMEOUT 100000
-#define MAX_SERIAL_PORTS 6
+#define SERIAL_PORTS_NUM 6
 #define OFFSET_BY_PORT 1000
 
 #define COIL_ON_VALUE  1
@@ -28,6 +28,10 @@
 #define READ_HOLDING_REGISTER_CMD  4
 #define WRITE_COIL_CMD             5
 #define WRITE_HOLDING_REGISTER_CMD 6
+
+#define MODBUS_PARITY_NONE 'N'
+#define MODBUS_PARITY_ODD  'O'
+#define MODBUS_PARITY_EVEN 'E'
 
 /**
  * @brief Structure that represents a simple modbus slave used to parse json config file
@@ -80,6 +84,18 @@ typedef struct master_command
     uint16_t slave_id;
 } master_command_t;
 
+
+/**
+ * @brief Structure used to represent configuration data for serial port used in modbus connection
+ */
+typedef struct serial_configuration
+{
+    uint32_t baud_rate;
+    uint8_t data_bits;
+    uint8_t stop_bits;
+    char parity;
+} serial_configuration_t;
+
 /**
  * @brief Function that parses slave configuration of json config file for slave memory layout
  * 
@@ -95,10 +111,11 @@ uint8_t* parse_address_array(json_t* json_array, uint8_t* count);
  * 
  * @param root JSON object representing an opened json config file
  * @param num_of_slaves References to the variables holding the count of created slave objects
+ * @param cfg Array of serial configuration objects used to store parsed information about serial ports cfg
  * 
  * @returns Dynamically allocated arrays of parsed slave device objects or NULL if failure
  */
-simple_slave_t** parse_slaves(json_t* root, uint8_t* num_of_slaves);
+simple_slave_t** parse_slaves(json_t* root, uint8_t* num_of_slaves, serial_configuration_t* cfg);
 
 /**
  * @brief Function that releases the memory allocated for slave device objects
@@ -129,10 +146,11 @@ void free_interrogation_response(interrogation_response_t* resp);
  * 
  * @param cfg_file Path to the json configuration file
  * @param num_of_slaves Array of variables holding the count of created slave objects
+ * @param cfg Array of serial configuration objects used to store parsed information about serial ports cfg
  * 
  * @returns Dynamically allocated arrays of parsed slave device objects or NULL if failure
  */
-simple_slave_t** init_slaves(const char* cfg_file, uint8_t* num_of_slaves);
+simple_slave_t** init_slaves(const char* cfg_file, uint8_t* num_of_slaves, serial_configuration_t* cfg);
 
 /**
  * @brief Function that initializes modbus connection and creates a modbus context object

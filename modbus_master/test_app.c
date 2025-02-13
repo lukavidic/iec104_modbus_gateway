@@ -8,14 +8,13 @@
 #include "modbus_master.h"
 
 #define BAUD_RATE 19200
-#define PARITY_NONE 'N'
 #define DATA_BITS 8 
 #define STOP_BITS 2
 
 #define PRINT_SLAVES_VAL 7 
 #define EXIT_VAL 8
 
-const char* DEVICE_PATHS[MAX_SERIAL_PORTS] = {"/dev/ttyS1", "/dev/ttyS2", "/dev/ttyS3", "/dev/ttyS4", "/dev/ttyS5", "/dev/ttyS6"};
+const char* DEVICE_PATHS[SERIAL_PORTS_NUM] = {"/dev/ttyS1", "/dev/ttyS2", "/dev/ttyS3", "/dev/ttyS4", "/dev/ttyS5", "/dev/ttyS6"};
 const char* CONFIG_FILE_PATH = "config.json";
 
 uint8_t running = 1;
@@ -33,9 +32,10 @@ void sigint_handler(int id)
 int main()
 {
     int rc = 0;
-    uint8_t num_of_slaves[MAX_SERIAL_PORTS] = {0};
+    uint8_t num_of_slaves[SERIAL_PORTS_NUM] = {0};
     simple_slave_t** slaves = NULL;
-    modbus_t* ctx[MAX_SERIAL_PORTS];
+    modbus_t* ctx[SERIAL_PORTS_NUM];
+    serial_configuration_t cfg[SERIAL_PORTS_NUM];
     int choice = 0;
 
     uint8_t idx = 0;
@@ -50,7 +50,7 @@ int main()
     signal(SIGINT, sigint_handler);
 
     /* Configure the master with information about connected slave devices */
-    slaves = init_slaves(CONFIG_FILE_PATH, num_of_slaves);
+    slaves = init_slaves(CONFIG_FILE_PATH, num_of_slaves, cfg);
     if(slaves == NULL)
     {
         fprintf(stderr, "Unable to get slave devices configuration.\n");
@@ -58,11 +58,11 @@ int main()
     }
 
     /* Initialize modbus RTU context */
-    for(uint8_t i = 0; i < MAX_SERIAL_PORTS; i++)
+    for(uint8_t i = 0; i < SERIAL_PORTS_NUM; i++)
     {
         if(slaves[i] != NULL)
         {
-            ctx[i] = init_modbus_connection(DEVICE_PATHS[i], BAUD_RATE, PARITY_NONE, DATA_BITS, STOP_BITS);
+            ctx[i] = init_modbus_connection(DEVICE_PATHS[i], cfg[i].baud_rate, cfg[i].parity, cfg[i].data_bits, cfg[i].stop_bits);
         }
         else
         {
@@ -105,7 +105,7 @@ int main()
             fprintf(stdout, "Slave ID: ");
             scanf("%hu", &slave_id);
             idx = slave_id / OFFSET_BY_PORT - 1;
-            if(idx < 0 || idx >= MAX_SERIAL_PORTS)
+            if(idx < 0 || idx >= SERIAL_PORTS_NUM)
             {
                 fprintf(stderr, "Invalid slave ID, index out of bounds.\n");
                 break;
@@ -127,7 +127,7 @@ int main()
             fprintf(stdout, "Coil address: ");
             scanf("%hhu", &target_address);
             idx = slave_id / OFFSET_BY_PORT - 1;
-            if(idx < 0 || idx >= MAX_SERIAL_PORTS)
+            if(idx < 0 || idx >= SERIAL_PORTS_NUM)
             {
                 fprintf(stderr, "Invalid slave ID, index out of bounds.\n");
                 break;
@@ -149,7 +149,7 @@ int main()
             fprintf(stdout, "Discrete input address: ");
             scanf("%hhu", &target_address);
             idx = slave_id / OFFSET_BY_PORT - 1;
-            if(idx < 0 || idx >= MAX_SERIAL_PORTS)
+            if(idx < 0 || idx >= SERIAL_PORTS_NUM)
             {
                 fprintf(stderr, "Invalid slave ID, index out of bounds.\n");
                 break;
@@ -171,7 +171,7 @@ int main()
             fprintf(stdout, "Input register address: ");
             scanf("%hhu", &target_address);
             idx = slave_id / OFFSET_BY_PORT - 1;
-            if(idx < 0 || idx >= MAX_SERIAL_PORTS)
+            if(idx < 0 || idx >= SERIAL_PORTS_NUM)
             {
                 fprintf(stderr, "Invalid slave ID, index out of bounds.\n");
                 break;
@@ -193,7 +193,7 @@ int main()
             fprintf(stdout, "Holding register address: ");
             scanf("%hhu", &target_address);
             idx = slave_id / OFFSET_BY_PORT - 1;
-            if(idx < 0 || idx >= MAX_SERIAL_PORTS)
+            if(idx < 0 || idx >= SERIAL_PORTS_NUM)
             {
                 fprintf(stderr, "Invalid slave ID, index out of bounds.\n");
                 break;
@@ -225,7 +225,7 @@ int main()
                 target_value = COIL_OFF_VALUE;
             }
             idx = slave_id / OFFSET_BY_PORT - 1;
-            if(idx < 0 || idx >= MAX_SERIAL_PORTS)
+            if(idx < 0 || idx >= SERIAL_PORTS_NUM)
             {
                 fprintf(stderr, "Invalid slave ID, index out of bounds.\n");
                 break;
@@ -247,7 +247,7 @@ int main()
             fprintf(stdout, "Holding register value (0 - 65535): ");
             scanf("%hu", &target_value);
             idx = slave_id / OFFSET_BY_PORT - 1;
-            if(idx < 0 || idx >= MAX_SERIAL_PORTS)
+            if(idx < 0 || idx >= SERIAL_PORTS_NUM)
             {
                 fprintf(stderr, "Invalid slave ID, index out of bounds.\n");
                 break;

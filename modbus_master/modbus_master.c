@@ -41,12 +41,13 @@ uint8_t* parse_address_array(json_t* json_array, uint8_t* count)
     return addresses;
 }
 
-simple_slave_t** parse_slaves(json_t* root, uint8_t* num_of_slaves)
+simple_slave_t** parse_slaves(json_t* root, uint8_t* num_of_slaves, serial_configuration_t* cfg)
 {
     uint8_t size = 0;
     uint8_t num_of_ports = 0;
     uint8_t active = 0;
     uint8_t port_value = 0;
+    uint8_t parity_tmp = 0;
     simple_slave_t** slaves = NULL;
     json_t* slaves_array = NULL;
     json_t* slave_obj = NULL;
@@ -62,16 +63,44 @@ simple_slave_t** parse_slaves(json_t* root, uint8_t* num_of_slaves)
     }
 
     num_of_ports = json_array_size(port_array);
+
+    if(num_of_ports != SERIAL_PORTS_NUM)
+    {
+        #ifdef PRINT_DEBUG
+            fprintf(stderr, "Failed to parse config file, incorrect number of serial ports included. There must be %u ports in config.\n", SERIAL_PORTS_NUM);
+        #endif
+    }
     slaves = (simple_slave_t**) malloc(num_of_ports * sizeof(simple_slave_t*));
 
     for(uint8_t j = 0; j < num_of_ports; j++)
     {
         port_obj = json_array_get(port_array, j);
-        active = (uint8_t)json_integer_value(json_object_get(port_obj, "active"));
-        port_value = (uint8_t)json_integer_value(json_object_get(port_obj, "value"));
-        //fprintf(stdout, "Port value: %u, active: %u\n", port_value, active);
+        active = (uint8_t) json_integer_value(json_object_get(port_obj, "active"));
+        port_value = (uint8_t) json_integer_value(json_object_get(port_obj, "value"));
+        cfg[j].baud_rate = (uint32_t) json_integer_value(json_object_get(port_obj, "baud_rate"));
+        cfg[j].data_bits = (uint8_t) json_integer_value(json_object_get(port_obj, "data_bits"));
+        cfg[j].stop_bits = (uint8_t) json_integer_value(json_object_get(port_obj, "stop_bits"));
+        parity_tmp = (uint8_t) json_integer_value(json_object_get(port_obj, "parity"));
+
+        if(parity_tmp == 0)
+        {
+            cfg[j].parity = MODBUS_PARITY_NONE;
+        }
+        else if(parity_tmp == 1)
+        {
+            cfg[j].parity = MODBUS_PARITY_ODD;
+        }
+        else
+        {
+            cfg[j].parity = MODBUS_PARITY_EVEN;
+        }
+
         if(active)
         {
+            #ifdef PRINT_DEBUG
+                fprintf(stdout, "Active port: %u, baud rate: %u, data: %ub, stop: %ub, parity: %c\n", 
+                    port_value, cfg[j].baud_rate, cfg[j].data_bits, cfg[j].stop_bits, cfg[j].parity);
+            #endif
             slaves_array = json_object_get(port_obj, "slaves");
             slave_obj = NULL;
             size = 0;
@@ -133,7 +162,7 @@ simple_slave_t** parse_slaves(json_t* root, uint8_t* num_of_slaves)
 
 void free_slaves(simple_slave_t** slaves, uint8_t* num_of_slaves) 
 {
-    for(uint8_t j = 0; j < MAX_SERIAL_PORTS; j++)
+    for(uint8_t j = 0; j < SERIAL_PORTS_NUM; j++)
     {
         if(slaves[j] != NULL)
             {
@@ -154,7 +183,7 @@ void free_modbus(modbus_t** ctx)
 {
     if(ctx != NULL)
     {
-        for(uint8_t i = 0; i < MAX_SERIAL_PORTS; i++)
+        for(uint8_t i = 0; i < SERIAL_PORTS_NUM; i++)
         {
             if(ctx[i] != NULL)
             {
@@ -174,7 +203,7 @@ void free_interrogation_response(interrogation_response_t* resp)
     free(resp);
 }
 
-simple_slave_t** init_slaves(const char* cfg_file, uint8_t* num_of_slaves)
+simple_slave_t** init_slaves(const char* cfg_file, uint8_t* num_of_slaves, serial_configuration_t* cfg)
 {
     simple_slave_t** slaves = NULL;
     json_error_t error;
@@ -189,7 +218,7 @@ simple_slave_t** init_slaves(const char* cfg_file, uint8_t* num_of_slaves)
         return NULL;
     }
 
-    slaves = parse_slaves(root, num_of_slaves);
+    slaves = parse_slaves(root, num_of_slaves, cfg);
     json_decref(root);
 
     return slaves;
@@ -217,8 +246,10 @@ modbus_t* init_modbus_connection(const char* dev_path, uint32_t baud, uint8_t pa
     */
 
     /* Set timeout */
+    /*
     modbus_set_byte_timeout(ctx, 0, 0);
     modbus_set_response_timeout(ctx, 0, RESPONSE_TIMEOUT);
+    */
 
     /* Connect to the line */
     if(modbus_connect(ctx) == -1)
@@ -235,7 +266,7 @@ modbus_t* init_modbus_connection(const char* dev_path, uint32_t baud, uint8_t pa
 void print_slaves(simple_slave_t** slaves, uint8_t* num_of_slaves)
 {
     uint8_t i, j, k;
-    for(k = 0; k < MAX_SERIAL_PORTS; k++)
+    for(k = 0; k < SERIAL_PORTS_NUM; k++)
     {
         fprintf(stdout, "----------------- SERIAL PORT %u -----------------\n\n", k + 1);
         if(slaves[k] != NULL)
