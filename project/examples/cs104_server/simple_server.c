@@ -30,7 +30,7 @@
 /**
  * Project specific local variables
  */
-uint8_t num_of_stations = 0; //!< Counter variable that stores the number of connected MODBUS stations
+uint8_t num_of_stations = 0;
 
 void sendAllSinglePoints(IMasterConnection connection)
 {
@@ -81,7 +81,6 @@ void sendAllScaledValues(IMasterConnection connection)
     IMasterConnection_sendASDU(connection, newAsdu);
     CS101_ASDU_destroy(newAsdu);
 }
-
 
 
 static bool running = true;
@@ -199,14 +198,11 @@ readHandler(void* parameter, IMasterConnection connection, CS101_ASDU asdu, int 
         else
         {
             io = NULL;
-        }
-        if(io == NULL)
-        {
             CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_IOA);
             CS101_ASDU_setNegative(asdu, true);
             IMasterConnection_sendASDU(connection, asdu);
         }
-        else
+        if(io != NULL)
         {
             CS101_ASDU_addInformationObject(newAsdu, io);
             InformationObject_destroy(io);
@@ -236,7 +232,7 @@ asduHandler(void* parameter, IMasterConnection connection, CS101_ASDU asdu)
             InformationObject io = CS101_ASDU_getElement(asdu, 0);
             if(io) 
             {
-                if(InformationObject_getObjectAddress(io) <= 5) 
+                if(InformationObject_getObjectAddress(io) >= COIL_ADDRESS_START && InformationObject_getObjectAddress(io) <= COIL_ADDRESS_END) 
                 {
                     SingleCommand sc = (SingleCommand) io;
                     printf("IOA: %i switch to %i\n", InformationObject_getObjectAddress(io), SingleCommand_getState(sc));
@@ -262,6 +258,44 @@ asduHandler(void* parameter, IMasterConnection connection, CS101_ASDU asdu)
 
         return true;
     }
+    if(CS101_ASDU_getTypeID(asdu) == C_SC_TA_1)
+    {
+        printf("Received single command with a time tag\n");
+
+        if(CS101_ASDU_getCOT(asdu) == CS101_COT_ACTIVATION)
+        {
+            InformationObject io = CS101_ASDU_getElement(asdu, 0);
+            if(io)
+            {
+                if(InformationObject_getObjectAddress(io) >= COIL_ADDRESS_START && InformationObject_getObjectAddress(io) <= COIL_ADDRESS_END) 
+                {
+                    SingleCommandWithCP56Time2a sc = (SingleCommandWithCP56Time2a) io;
+                    printf("IOA: %i switch to %i\n", InformationObject_getObjectAddress(io), SingleCommand_getState((SingleCommand)sc));
+                    printf("Timestamp info: ");
+                    printCP56Time2a(SingleCommandWithCP56Time2a_getTimestamp(sc));
+                    CS101_ASDU_setCOT(asdu, CS101_COT_ACTIVATION_CON);
+                }
+                else
+                {
+                    CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_IOA);
+                }
+                InformationObject_destroy(io);
+            }
+            else
+            {
+                printf("ERROR: message has no valid information object\n");
+                return true;
+            }
+        }
+        else
+        {
+            CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_COT);
+        }
+
+        IMasterConnection_sendASDU(connection, asdu);
+
+        return true;
+    }
     if(CS101_ASDU_getTypeID(asdu) == C_SE_NB_1)
     {
         printf("Received set-point, scaled value command\n");
@@ -271,10 +305,49 @@ asduHandler(void* parameter, IMasterConnection connection, CS101_ASDU asdu)
             InformationObject io = CS101_ASDU_getElement(asdu, 0);
             if(io) 
             {
-                if(InformationObject_getObjectAddress(io) <= HOLDING_REGISTER_ADDRESS_START + 5) 
+                if(InformationObject_getObjectAddress(io) >= HOLDING_REGISTER_ADDRESS_START && 
+                   InformationObject_getObjectAddress(io) <= HOLDING_REGISTER_ADDRESS_END) 
                 {
                     SetpointCommandScaled spsc = (SetpointCommandScaled) io;
                     printf("IOA: %i set to %i\n", InformationObject_getObjectAddress(io), SetpointCommandScaled_getValue(spsc));
+                    CS101_ASDU_setCOT(asdu, CS101_COT_ACTIVATION_CON);
+                }
+                else
+                {
+                    CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_IOA);
+                }
+                InformationObject_destroy(io);
+            }
+            else 
+            {
+                printf("ERROR: message has no valid information object\n");
+                return true;
+            }
+        }
+        else
+        {
+            CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_COT);
+        }
+        IMasterConnection_sendASDU(connection, asdu);
+
+        return true;
+    }
+    if(CS101_ASDU_getTypeID(asdu) == C_SE_TB_1)
+    {
+        printf("Received set-point, scaled value command with a time tag\n");
+
+        if(CS101_ASDU_getCOT(asdu) == CS101_COT_ACTIVATION) 
+        {
+            InformationObject io = CS101_ASDU_getElement(asdu, 0);
+            if(io) 
+            {
+                if(InformationObject_getObjectAddress(io) >= HOLDING_REGISTER_ADDRESS_START && 
+                   InformationObject_getObjectAddress(io) <= HOLDING_REGISTER_ADDRESS_END) 
+                {
+                    SetpointCommandScaledWithCP56Time2a spsc = (SetpointCommandScaledWithCP56Time2a) io;
+                    printf("IOA: %i set to %i\n", InformationObject_getObjectAddress(io), SetpointCommandScaled_getValue((SetpointCommandScaled)spsc));
+                    printf("Timestamp info: ");
+                    printCP56Time2a(SingleCommandWithCP56Time2a_getTimestamp(spsc));
                     CS101_ASDU_setCOT(asdu, CS101_COT_ACTIVATION_CON);
                 }
                 else
