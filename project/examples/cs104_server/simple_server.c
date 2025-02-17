@@ -5,6 +5,7 @@
 #include <signal.h>
 
 #include "cs104_slave.h"
+#include "modbus_master.h"
 
 #include "hal_thread.h"
 #include "hal_time.h"
@@ -26,11 +27,26 @@
 #define HOLDING_REGISTER_ADDRESS_START  40001
 #define HOLDING_REGISTER_ADDRESS_END    50000
 
+const char* DEVICE_PATHS[SERIAL_PORTS_NUM] = {"/dev/ttyS1", "/dev/ttyS2", "/dev/ttyS3", "/dev/ttyS4", "/dev/ttyS5", "/dev/ttyS6"};
+const char* CONFIG_FILE_PATH = "config.json";
 
 /**
- * Project specific local variables
+ * Structure used to hold variables needed for modbus communication.
+ * Created in order to enable sending the parameter to IEC104 function handlers.
+ */
+typedef modbus_communication_param
+{
+    uint8_t num_of_slaves[SERIAL_PORTS_NUM];
+    simple_slave_t** slaves = NULL;
+    modbus_t* ctx[SERIAL_PORTS_NUM];
+} modbus_communication_param_t;
+
+
+/**
+ * Project specific global variables
  */
 uint8_t num_of_stations = 0;
+static bool running = true;
 
 void sendAllSinglePoints(IMasterConnection connection)
 {
@@ -82,9 +98,6 @@ void sendAllScaledValues(IMasterConnection connection)
     CS101_ASDU_destroy(newAsdu);
 }
 
-
-static bool running = true;
-
 void
 sigint_handler(int signalId)
 {
@@ -94,7 +107,7 @@ sigint_handler(int signalId)
 void
 printCP56Time2a(CP56Time2a time)
 {
-    printf("%02i:%02i:%02i %02i/%02i/%04i", 
+    printf("%02i:%02i:%02i %02i/%02i/%04i\n", 
                             CP56Time2a_getHour(time),
                             CP56Time2a_getMinute(time),
                             CP56Time2a_getSecond(time),
@@ -409,9 +422,16 @@ connectionEventHandler(void* parameter, IMasterConnection con, CS104_PeerConnect
     }
 }
 
+
+
 int
 main(int argc, char** argv)
 {
+    /* Prepare variables for modbus master initialization */
+    int rc = 0;
+    serial_configuration_t cfg[SERIAL_PORTS_NUM];
+    modbus_communication_param_t mb_comm_param;
+
     /* Add Ctrl-C handler */
     signal(SIGINT, sigint_handler);
 
@@ -460,7 +480,7 @@ main(int argc, char** argv)
     CS104_Slave_setReadHandler(slave, readHandler, NULL);
 
     /* uncomment to log messages */
-    CS104_Slave_setRawMessageHandler(slave, rawMessageHandler, NULL);
+    //CS104_Slave_setRawMessageHandler(slave, rawMessageHandler, NULL);
 
     CS104_Slave_start(slave);
 

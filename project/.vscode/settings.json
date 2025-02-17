@@ -1,3 +1,7 @@
 {
-    "cmake.ignoreCMakeListsMissing": true
+    "cmake.ignoreCMakeListsMissing": true,
+    "files.associations": {
+        "cs104_slave.h": "c",
+        "modbus_master.h": "c"
+    }
 }

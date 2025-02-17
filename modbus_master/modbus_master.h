@@ -66,26 +66,6 @@ typedef struct interrogation_response
 } interrogation_response_t;
 
 /**
- * @brief Structure used to represent a command that modbus master should execute
- * 
- * @details This structure is created in order to simplify usage of modbus master API
- * in a way that all read/write commands can be executed according to the values 
- * inserted in an instance of this structure. Some fields in this structure are not needed 
- * for certain requests (eg. field target_value is not needed in read requests). 
- * In this case, these fields will be ignored, so their values are not a must to set. 
- * The command_type field should be initialized with one of the defined constants at the 
- * beginning this header file.
- */
-typedef struct master_command
-{
-    uint8_t command_type;
-    uint8_t target_addr;
-    uint8_t target_value;
-    uint16_t slave_id;
-} master_command_t;
-
-
-/**
  * @brief Structure used to represent configuration data for serial port used in modbus connection
  */
 typedef struct serial_configuration

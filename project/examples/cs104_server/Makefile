@@ -3,6 +3,11 @@ LIB60870_HOME=../..
 PROJECT_BINARY_NAME = simple_server
 PROJECT_SOURCES = simple_server.c
 
+PROJECT_SOURCES += $(LIB60870_HOME)/../modbus_master/modbus_master.c
+INCLUDES = $(LIB60870_HOME)/../modbus_master
+LDLIBS = -lmodbus
+LDLIBS += -ljansson
+
 include $(LIB60870_HOME)/make/target_system.mk
 include $(LIB60870_HOME)/make/stack_includes.mk
 
