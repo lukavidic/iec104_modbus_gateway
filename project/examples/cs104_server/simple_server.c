@@ -34,37 +34,32 @@ const char* CONFIG_FILE_PATH = "config.json";
  * Structure used to hold variables needed for modbus communication.
  * Created in order to enable sending the parameter to IEC104 function handlers.
  */
-typedef modbus_communication_param
+typedef struct modbus_communication_param
 {
     uint8_t num_of_slaves[SERIAL_PORTS_NUM];
-    simple_slave_t** slaves = NULL;
+    simple_slave_t** slaves;
     modbus_t* ctx[SERIAL_PORTS_NUM];
 } modbus_communication_param_t;
 
-
-/**
- * Project specific global variables
- */
-uint8_t num_of_stations = 0;
 static bool running = true;
 
-void sendAllSinglePoints(IMasterConnection connection)
+void sendAllSinglePoints(IMasterConnection connection, interrogation_response_t* resp, uint16_t slave_id, simple_slave_t* slave)
 {
     CS101_AppLayerParameters alParams = IMasterConnection_getApplicationLayerParameters(connection);
-    CS101_ASDU newAsdu = CS101_ASDU_create(alParams, false, CS101_COT_INTERROGATED_BY_STATION, 0, 1, false, false);
+    CS101_ASDU newAsdu = CS101_ASDU_create(alParams, false, CS101_COT_INTERROGATED_BY_STATION, 0, slave_id, false, false);
 
-    // Create and send coil states and discrete inputs for testing
-
-    for(int i = 0; i < 5; i++)
+    for(uint8_t i = 0; i < resp->num_of_coils; i++)
     {
-        InformationObject io = (InformationObject) SinglePointInformation_create(NULL, COIL_ADDRESS_START + i, true, IEC60870_QUALITY_GOOD);
+        InformationObject io = (InformationObject) SinglePointInformation_create(NULL, COIL_ADDRESS_START + slave->coils_addr[i], 
+            resp->coils[i], IEC60870_QUALITY_GOOD);
         CS101_ASDU_addInformationObject(newAsdu, io);
         InformationObject_destroy(io);
     }
 
-    for(int i = 0; i < 5; i++)
+    for(uint8_t i = 0; i < resp->num_of_discrete_inputs; i++)
     {
-        InformationObject io = (InformationObject) SinglePointInformation_create(NULL, DISCRETE_INPUT_ADDRESS_START + i, false, IEC60870_QUALITY_GOOD);
+        InformationObject io = (InformationObject) SinglePointInformation_create(NULL, DISCRETE_INPUT_ADDRESS_START + slave->discrete_inputs_addr[i], 
+            resp->discrete_inputs[i], IEC60870_QUALITY_GOOD);
         CS101_ASDU_addInformationObject(newAsdu, io);
         InformationObject_destroy(io);
     }
@@ -73,23 +68,25 @@ void sendAllSinglePoints(IMasterConnection connection)
     CS101_ASDU_destroy(newAsdu);
 }
 
-void sendAllScaledValues(IMasterConnection connection)
+void sendAllScaledValues(IMasterConnection connection, interrogation_response_t* resp, uint16_t slave_id, simple_slave_t* slave)
 {
     CS101_AppLayerParameters alParams = IMasterConnection_getApplicationLayerParameters(connection);
     CS101_ASDU newAsdu = CS101_ASDU_create(alParams, false, CS101_COT_INTERROGATED_BY_STATION, 0, 1, false, false);
 
     // Create and send input and holding registers for testing
 
-    for(int i = 0; i < 5; i++)
+    for(int i = 0; i < resp->num_of_input_registers; i++)
     {
-        InformationObject io = (InformationObject) MeasuredValueScaled_create(NULL, INPUT_REGISTER_ADDRESS_START + i, 15 * i, IEC60870_QUALITY_GOOD);
+        InformationObject io = (InformationObject) MeasuredValueScaled_create(NULL, INPUT_REGISTER_ADDRESS_START + slave->input_registers_addr[i], 
+            resp->input_regs[i], IEC60870_QUALITY_GOOD);
         CS101_ASDU_addInformationObject(newAsdu, io);
         InformationObject_destroy(io);
     }
 
-    for(int i = 0; i < 5; i++)
+    for(int i = 0; i < resp->num_of_holding_registers; i++)
     {
-        InformationObject io = (InformationObject) MeasuredValueScaled_create(NULL, HOLDING_REGISTER_ADDRESS_START + i, 50 * i, IEC60870_QUALITY_GOOD);
+        InformationObject io = (InformationObject) MeasuredValueScaled_create(NULL, HOLDING_REGISTER_ADDRESS_START + slave->holding_registers_addr[i], 
+            resp->holding_regs[i], IEC60870_QUALITY_GOOD);
         CS101_ASDU_addInformationObject(newAsdu, io);
         InformationObject_destroy(io);
     }
@@ -151,23 +148,50 @@ clockSyncHandler (void* parameter, IMasterConnection connection, CS101_ASDU asdu
 static bool
 interrogationHandler(void* parameter, IMasterConnection connection, CS101_ASDU asdu, uint8_t qoi)
 {
+    modbus_communication_param_t* mb_param = (modbus_communication_param_t*) (parameter);
+    interrogation_response_t* resp = NULL;
+    uint8_t idx = 0;
+    uint8_t slave_idx = 0;
+    uint16_t slave_id = 0;
+
     printf("Received interrogation for group %i\n", qoi);
 
-    if (qoi == 20) { /* only handle station interrogation */
+    if (qoi == 20) 
+    { /* only handle station interrogation */
 
         CS101_AppLayerParameters alParams = IMasterConnection_getApplicationLayerParameters(connection);
+
+        slave_id = (uint16_t) CS101_ASDU_getCA(asdu);
+        idx = slave_id / OFFSET_BY_PORT - 1;
+        if(idx < 0 || idx >= SERIAL_PORTS_NUM)
+        {
+            fprintf(stderr, "Invalid slave ID, index out of bounds.\n");
+            IMasterConnection_sendACT_CON(connection, asdu, true);
+            return true;    
+        }
+
+        resp = interrogate_slave(slave_id, mb_param->slaves[idx], mb_param->num_of_slaves[idx], mb_param->ctx[idx]);
+        if(resp == NULL)
+        {
+            fprintf(stderr, "Failed to get interrogation response for slave: %u.\n", slave_id);
+            IMasterConnection_sendACT_CON(connection, asdu, true);
+            return true;
+        } 
+
         IMasterConnection_sendACT_CON(connection, asdu, false);
 
+        slave_idx = get_slave_idx(slave_id, mb_param->slaves[idx], mb_param->num_of_slaves[idx]);
+
         /* The CS101 specification only allows information objects without timestamp in GI responses */
-        sendAllSinglePoints(connection);
-        sendAllScaledValues(connection);
+        sendAllSinglePoints(connection, resp, slave_id, &mb_param->slaves[idx][slave_idx]);
+        sendAllScaledValues(connection, resp, slave_id, &mb_param->slaves[idx][slave_idx]);
         
         IMasterConnection_sendACT_TERM(connection, asdu);
     }
-    else {
+    else 
+    {
         IMasterConnection_sendACT_CON(connection, asdu, true);
     }
-
     return true;
 }
 
@@ -180,46 +204,90 @@ readHandler(void* parameter, IMasterConnection connection, CS101_ASDU asdu, int 
         int ca = CS101_ASDU_getCA(asdu);
 		CS101_ASDU newAsdu = CS101_ASDU_create(alParams, false, CS101_COT_REQUEST, 0, ca, false, false);
         InformationObject io = NULL;
+        uint8_t* state_value = NULL;
+        uint16_t* reg_value = NULL;
+        modbus_communication_param_t* mb_param = (modbus_communication_param_t*) (parameter);
+        uint8_t idx = ca / OFFSET_BY_PORT - 1;
+        if(idx < 0 || idx >= SERIAL_PORTS_NUM)
+        {
+            fprintf(stderr, "Invalid slave ID, index out of bounds.\n");
+            ioa = -1; 
+        }
         /* 
             IMPORTANT: Might need to further divide address space of MODBUS to fit all of the
             IEC104 information elements ! 
         */
         if(ioa >= COIL_ADDRESS_START && ioa <= COIL_ADDRESS_END)
         {
-            // TODO: Read the specified coil status
-            io = (InformationObject) SinglePointInformation_create(NULL, ioa, true, IEC60870_QUALITY_GOOD);
-            printf("Reading state of the coil, address: %i", ioa);
+            state_value = read_coil((uint16_t) ca, (uint8_t) ioa, mb_param->slaves[idx], mb_param->num_of_slaves[idx], mb_param->ctx[idx]);
+            if(state_value == NULL)
+            {
+                io = NULL;
+                fprintf(stderr, "Failed to read coil status, address: %i.\n", ioa);
+            }
+            else
+            {
+                io = (InformationObject) SinglePointInformation_create(NULL, ioa, *state_value, IEC60870_QUALITY_GOOD);
+                printf("Reading state of the coil, address: %i\n", ioa);
+            }
         }
         else if(ioa >= DISCRETE_INPUT_ADDRESS_START && ioa <= DISCRETE_INPUT_ADDRESS_END)
         {
-            // TOOD: Read the specified discrete input
-            io = (InformationObject) SinglePointInformation_create(NULL, ioa, false, IEC60870_QUALITY_GOOD);
-            printf("Reading state of the discrete input, address: %i", ioa);
+            state_value = read_discrete_input((uint16_t) ca, (uint8_t) ioa, mb_param->slaves[idx], mb_param->num_of_slaves[idx], mb_param->ctx[idx]);
+            if(state_value == NULL)
+            {
+                io = NULL;
+                fprintf(stderr, "Failed to read discrete input status, address: %i.\n", ioa);
+            }
+            else
+            {
+                io = (InformationObject) SinglePointInformation_create(NULL, ioa, *state_value, IEC60870_QUALITY_GOOD);
+                printf("Reading state of the discrete input, address: %i\n", ioa);
+            }
         }
         else if(ioa >= INPUT_REGISTER_ADDRESS_START && ioa <= INPUT_REGISTER_ADDRESS_END)
         {
-            // TODO: Read the specified input register
-            io = (InformationObject) MeasuredValueScaled_create(NULL, ioa, 123, IEC60870_QUALITY_GOOD);
-            printf("Reading state of the input register, address: %i", ioa);
+            reg_value = read_input_register((uint16_t) ca, (uint8_t) ioa, mb_param->slaves[idx], mb_param->num_of_slaves[idx], mb_param->ctx[idx]);
+            if(reg_value == NULL)
+            {
+                io = NULL;
+                fprintf(stderr, "Failed to read input register value, address: %i.\n", ioa);
+            }
+            else
+            {
+                io = (InformationObject) MeasuredValueScaled_create(NULL, ioa, *reg_value, IEC60870_QUALITY_GOOD);
+                printf("Reading value of the input register, address: %i", ioa);
+            }
         }
         else if(ioa >= HOLDING_REGISTER_ADDRESS_START && ioa <= HOLDING_REGISTER_ADDRESS_END)
         {
-            // TODO: Read the specified holding register
-            io = (InformationObject) MeasuredValueScaled_create(NULL, ioa, 456, IEC60870_QUALITY_GOOD);
-            printf("Reading state of the holding register, address: %i", ioa);
+            reg_value = read_holding_register((uint16_t) ca, (uint8_t) ioa, mb_param->slaves[idx], mb_param->num_of_slaves[idx], mb_param->ctx[idx]);
+            if(reg_value == NULL)
+            {
+                io = NULL;
+                fprintf(stderr, "Failed to read holding register value, address: %i.\n", ioa);
+            }
+            else
+            {
+                io = (InformationObject) MeasuredValueScaled_create(NULL, ioa, *reg_value, IEC60870_QUALITY_GOOD);
+                printf("Reading value of the holding register, address: %i", ioa);
+            }
         }
         else
         {
             io = NULL;
-            CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_IOA);
-            CS101_ASDU_setNegative(asdu, true);
-            IMasterConnection_sendASDU(connection, asdu);
         }
         if(io != NULL)
         {
             CS101_ASDU_addInformationObject(newAsdu, io);
             InformationObject_destroy(io);
             IMasterConnection_sendASDU(connection, newAsdu);
+        }
+        else
+        {
+            CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_IOA);
+            CS101_ASDU_setNegative(asdu, true);
+            IMasterConnection_sendASDU(connection, asdu);
         }
         CS101_ASDU_destroy(newAsdu);
     }
@@ -235,6 +303,7 @@ readHandler(void* parameter, IMasterConnection connection, CS101_ASDU asdu, int 
 static bool
 asduHandler(void* parameter, IMasterConnection connection, CS101_ASDU asdu)
 {
+    modbus_communication_param_t* mb_param = (modbus_communication_param_t*) (parameter);
     /* For now implement only responses to single command and set point scaled value command */
     if(CS101_ASDU_getTypeID(asdu) == C_SC_NA_1) 
     {
@@ -266,6 +335,7 @@ asduHandler(void* parameter, IMasterConnection connection, CS101_ASDU asdu)
         else
         {
             CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_COT);
+            CS101_ASDU_setNegative(asdu, true);
         }
         IMasterConnection_sendASDU(connection, asdu);
 
@@ -303,6 +373,7 @@ asduHandler(void* parameter, IMasterConnection connection, CS101_ASDU asdu)
         else
         {
             CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_COT);
+            CS101_ASDU_setNegative(asdu, true);
         }
 
         IMasterConnection_sendASDU(connection, asdu);
@@ -340,6 +411,7 @@ asduHandler(void* parameter, IMasterConnection connection, CS101_ASDU asdu)
         else
         {
             CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_COT);
+            CS101_ASDU_setNegative(asdu, true);
         }
         IMasterConnection_sendASDU(connection, asdu);
 
@@ -360,7 +432,7 @@ asduHandler(void* parameter, IMasterConnection connection, CS101_ASDU asdu)
                     SetpointCommandScaledWithCP56Time2a spsc = (SetpointCommandScaledWithCP56Time2a) io;
                     printf("IOA: %i set to %i\n", InformationObject_getObjectAddress(io), SetpointCommandScaled_getValue((SetpointCommandScaled)spsc));
                     printf("Timestamp info: ");
-                    printCP56Time2a(SingleCommandWithCP56Time2a_getTimestamp(spsc));
+                    printCP56Time2a(SetpointCommandScaledWithCP56Time2a_getTimestamp(spsc));
                     CS101_ASDU_setCOT(asdu, CS101_COT_ACTIVATION_CON);
                 }
                 else
@@ -378,6 +450,7 @@ asduHandler(void* parameter, IMasterConnection connection, CS101_ASDU asdu)
         else
         {
             CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_COT);
+            CS101_ASDU_setNegative(asdu, true);
         }
         IMasterConnection_sendASDU(connection, asdu);
 
@@ -435,6 +508,26 @@ main(int argc, char** argv)
     /* Add Ctrl-C handler */
     signal(SIGINT, sigint_handler);
 
+    /* Initialize modbus slaves and connections */
+    mb_comm_param.slaves = init_slaves(CONFIG_FILE_PATH, mb_comm_param.num_of_slaves, cfg);
+    if(mb_comm_param.slaves == NULL)
+    {
+        fprintf(stderr, "Unable to get slave devices configuration.\n");
+        return 0;
+    }
+
+    for(uint8_t i = 0; i < SERIAL_PORTS_NUM; i++)
+    {
+        if(mb_comm_param.slaves[i] != NULL)
+        {
+            mb_comm_param.ctx[i] = init_modbus_connection(DEVICE_PATHS[i], cfg[i].baud_rate, cfg[i].parity, cfg[i].data_bits, cfg[i].stop_bits);
+        }
+        else
+        {
+            mb_comm_param.ctx[i] = NULL;
+        }
+    }
+
     /* create a new slave/server instance with default connection parameters and
      * default message queue size */
     CS104_Slave slave = CS104_Slave_create(10, 10);
@@ -465,10 +558,10 @@ main(int argc, char** argv)
     CS104_Slave_setClockSyncHandler(slave, clockSyncHandler, NULL);
 
     /* set the callback handler for the interrogation command */
-    CS104_Slave_setInterrogationHandler(slave, interrogationHandler, NULL);
+    CS104_Slave_setInterrogationHandler(slave, interrogationHandler, (void*) (&mb_comm_param));
 
     /* set handler for other message types */
-    CS104_Slave_setASDUHandler(slave, asduHandler, NULL);
+    CS104_Slave_setASDUHandler(slave, asduHandler, (void*) (&mb_comm_param));
 
     /* set handler to handle connection requests (optional) */
     CS104_Slave_setConnectionRequestHandler(slave, connectionRequestHandler, NULL);
@@ -477,7 +570,7 @@ main(int argc, char** argv)
     CS104_Slave_setConnectionEventHandler(slave, connectionEventHandler, NULL);
 
     /* set handler for read command */
-    CS104_Slave_setReadHandler(slave, readHandler, NULL);
+    CS104_Slave_setReadHandler(slave, readHandler, (void*) (&mb_comm_param));
 
     /* uncomment to log messages */
     //CS104_Slave_setRawMessageHandler(slave, rawMessageHandler, NULL);
@@ -515,6 +608,8 @@ main(int argc, char** argv)
 
 exit_program:
     CS104_Slave_destroy(slave);
+    free_modbus(mb_comm_param.ctx);
+    free_slaves(mb_comm_param.slaves, mb_comm_param.num_of_slaves);
 
     Thread_sleep(500);
 }

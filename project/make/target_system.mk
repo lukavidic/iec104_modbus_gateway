@@ -123,7 +123,7 @@ HAL_IMPL = POSIX
 endif
 
 
-LDLIBS = -lpthread
+LDLIBS += -lpthread
 
 
 ifeq ($(TARGET), LINUX-MIPSEL)
