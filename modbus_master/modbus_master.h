@@ -247,8 +247,8 @@ uint8_t write_coil(uint16_t slave_id, uint8_t coil_addr, uint8_t coil_value, sim
  * @brief Function that writes value to one holding register
  * 
  * @param slave_id Address (id) of the slave device
- * @param coil_addr Address of the holding register to be written
- * @param coil_value Value to be written, valid values are defined by the range of uint16_t type
+ * @param holding_reg_addr Address of the holding register to be written
+ * @param holding_reg_value Value to be written, valid values are defined by the range of uint16_t type
  * @param slaves The array of existing slaves
  * @param num_of_slaves Number of allocated slave objects
  * @param ctx Initialized modbus context

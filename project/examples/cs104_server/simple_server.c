@@ -43,10 +43,10 @@ typedef struct modbus_communication_param
 
 static bool running = true;
 
-void sendAllSinglePoints(IMasterConnection connection, interrogation_response_t* resp, uint16_t slave_id, simple_slave_t* slave)
+void sendAllSinglePoints(IMasterConnection connection, interrogation_response_t* resp, simple_slave_t* slave)
 {
     CS101_AppLayerParameters alParams = IMasterConnection_getApplicationLayerParameters(connection);
-    CS101_ASDU newAsdu = CS101_ASDU_create(alParams, false, CS101_COT_INTERROGATED_BY_STATION, 0, slave_id, false, false);
+    CS101_ASDU newAsdu = CS101_ASDU_create(alParams, false, CS101_COT_INTERROGATED_BY_STATION, 0, slave->id, false, false);
 
     for(uint8_t i = 0; i < resp->num_of_coils; i++)
     {
@@ -68,10 +68,10 @@ void sendAllSinglePoints(IMasterConnection connection, interrogation_response_t*
     CS101_ASDU_destroy(newAsdu);
 }
 
-void sendAllScaledValues(IMasterConnection connection, interrogation_response_t* resp, uint16_t slave_id, simple_slave_t* slave)
+void sendAllScaledValues(IMasterConnection connection, interrogation_response_t* resp, simple_slave_t* slave)
 {
     CS101_AppLayerParameters alParams = IMasterConnection_getApplicationLayerParameters(connection);
-    CS101_ASDU newAsdu = CS101_ASDU_create(alParams, false, CS101_COT_INTERROGATED_BY_STATION, 0, 1, false, false);
+    CS101_ASDU newAsdu = CS101_ASDU_create(alParams, false, CS101_COT_INTERROGATED_BY_STATION, 0, slave->id, false, false);
 
     // Create and send input and holding registers for testing
 
@@ -183,8 +183,8 @@ interrogationHandler(void* parameter, IMasterConnection connection, CS101_ASDU a
         slave_idx = get_slave_idx(slave_id, mb_param->slaves[idx], mb_param->num_of_slaves[idx]);
 
         /* The CS101 specification only allows information objects without timestamp in GI responses */
-        sendAllSinglePoints(connection, resp, slave_id, &mb_param->slaves[idx][slave_idx]);
-        sendAllScaledValues(connection, resp, slave_id, &mb_param->slaves[idx][slave_idx]);
+        sendAllSinglePoints(connection, resp, &mb_param->slaves[idx][slave_idx]);
+        sendAllScaledValues(connection, resp, &mb_param->slaves[idx][slave_idx]);
         
         IMasterConnection_sendACT_TERM(connection, asdu);
     }
@@ -219,7 +219,7 @@ readHandler(void* parameter, IMasterConnection connection, CS101_ASDU asdu, int 
         */
         if(ioa >= COIL_ADDRESS_START && ioa <= COIL_ADDRESS_END)
         {
-            state_value = read_coil((uint16_t) ca, (uint8_t) ioa, mb_param->slaves[idx], mb_param->num_of_slaves[idx], mb_param->ctx[idx]);
+            state_value = read_coil((uint16_t) ca, (uint8_t) (ioa - COIL_ADDRESS_START), mb_param->slaves[idx], mb_param->num_of_slaves[idx], mb_param->ctx[idx]);
             if(state_value == NULL)
             {
                 io = NULL;
@@ -233,7 +233,8 @@ readHandler(void* parameter, IMasterConnection connection, CS101_ASDU asdu, int 
         }
         else if(ioa >= DISCRETE_INPUT_ADDRESS_START && ioa <= DISCRETE_INPUT_ADDRESS_END)
         {
-            state_value = read_discrete_input((uint16_t) ca, (uint8_t) ioa, mb_param->slaves[idx], mb_param->num_of_slaves[idx], mb_param->ctx[idx]);
+            state_value = read_discrete_input((uint16_t) ca, (uint8_t) (ioa- DISCRETE_INPUT_ADDRESS_START), mb_param->slaves[idx], 
+                mb_param->num_of_slaves[idx], mb_param->ctx[idx]);
             if(state_value == NULL)
             {
                 io = NULL;
@@ -247,7 +248,8 @@ readHandler(void* parameter, IMasterConnection connection, CS101_ASDU asdu, int 
         }
         else if(ioa >= INPUT_REGISTER_ADDRESS_START && ioa <= INPUT_REGISTER_ADDRESS_END)
         {
-            reg_value = read_input_register((uint16_t) ca, (uint8_t) ioa, mb_param->slaves[idx], mb_param->num_of_slaves[idx], mb_param->ctx[idx]);
+            reg_value = read_input_register((uint16_t) ca, (uint8_t) (ioa - INPUT_REGISTER_ADDRESS_START), mb_param->slaves[idx], 
+                mb_param->num_of_slaves[idx], mb_param->ctx[idx]);
             if(reg_value == NULL)
             {
                 io = NULL;
@@ -261,7 +263,8 @@ readHandler(void* parameter, IMasterConnection connection, CS101_ASDU asdu, int 
         }
         else if(ioa >= HOLDING_REGISTER_ADDRESS_START && ioa <= HOLDING_REGISTER_ADDRESS_END)
         {
-            reg_value = read_holding_register((uint16_t) ca, (uint8_t) ioa, mb_param->slaves[idx], mb_param->num_of_slaves[idx], mb_param->ctx[idx]);
+            reg_value = read_holding_register((uint16_t) ca, (uint8_t) (ioa - HOLDING_REGISTER_ADDRESS_START), mb_param->slaves[idx], 
+                mb_param->num_of_slaves[idx], mb_param->ctx[idx]);
             if(reg_value == NULL)
             {
                 io = NULL;
@@ -304,6 +307,20 @@ static bool
 asduHandler(void* parameter, IMasterConnection connection, CS101_ASDU asdu)
 {
     modbus_communication_param_t* mb_param = (modbus_communication_param_t*) (parameter);
+    uint16_t slave_id = (uint16_t) CS101_ASDU_getCA(asdu);
+    uint8_t idx = slave_id / OFFSET_BY_PORT - 1;
+    uint8_t target_address = 0;
+    uint16_t target_value = 0;
+
+    if(idx < 0 || idx >= SERIAL_PORTS_NUM)
+    {
+        fprintf(stderr, "Invalid slave ID, index out of bounds.\n");
+        CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_CA);
+        CS101_ASDU_setNegative(asdu, true);
+        IMasterConnection_sendASDU(connection, asdu);
+        return true;    
+    }
+
     /* For now implement only responses to single command and set point scaled value command */
     if(CS101_ASDU_getTypeID(asdu) == C_SC_NA_1) 
     {
@@ -317,12 +334,24 @@ asduHandler(void* parameter, IMasterConnection connection, CS101_ASDU asdu)
                 if(InformationObject_getObjectAddress(io) >= COIL_ADDRESS_START && InformationObject_getObjectAddress(io) <= COIL_ADDRESS_END) 
                 {
                     SingleCommand sc = (SingleCommand) io;
-                    printf("IOA: %i switch to %i\n", InformationObject_getObjectAddress(io), SingleCommand_getState(sc));
-                    CS101_ASDU_setCOT(asdu, CS101_COT_ACTIVATION_CON);
+                    target_address = InformationObject_getObjectAddress(io) - COIL_ADDRESS_START;
+                    target_value = SingleCommand_getState(sc) == 0 ? COIL_OFF_VALUE : COIL_ON_VALUE;
+                    if(write_coil(slave_id, target_address, target_value, mb_param->slaves[idx], mb_param->num_of_slaves[idx], mb_param->ctx[idx]))
+                    {
+                        printf("IOA: %i switch to %i\n", InformationObject_getObjectAddress(io), SingleCommand_getState(sc));
+                        CS101_ASDU_setCOT(asdu, CS101_COT_ACTIVATION_CON);
+                    }
+                    else
+                    {
+                        fprintf(stderr, "Failed to set coil status, address: %i.\n", InformationObject_getObjectAddress(io));
+                        CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_IOA); 
+                        CS101_ASDU_setNegative(asdu, true);
+                    }
                 }
                 else
                 {
                     CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_IOA);
+                    CS101_ASDU_setNegative(asdu, true);
                 }
                 InformationObject_destroy(io);
             }
@@ -353,14 +382,26 @@ asduHandler(void* parameter, IMasterConnection connection, CS101_ASDU asdu)
                 if(InformationObject_getObjectAddress(io) >= COIL_ADDRESS_START && InformationObject_getObjectAddress(io) <= COIL_ADDRESS_END) 
                 {
                     SingleCommandWithCP56Time2a sc = (SingleCommandWithCP56Time2a) io;
-                    printf("IOA: %i switch to %i\n", InformationObject_getObjectAddress(io), SingleCommand_getState((SingleCommand)sc));
-                    printf("Timestamp info: ");
-                    printCP56Time2a(SingleCommandWithCP56Time2a_getTimestamp(sc));
-                    CS101_ASDU_setCOT(asdu, CS101_COT_ACTIVATION_CON);
+                    target_address = InformationObject_getObjectAddress(io) - COIL_ADDRESS_START;
+                    target_value = SingleCommand_getState((SingleCommand) sc) == 0 ? COIL_OFF_VALUE : COIL_ON_VALUE;
+                    if(write_coil(slave_id, target_address, target_value, mb_param->slaves[idx], mb_param->num_of_slaves[idx], mb_param->ctx[idx]))
+                    {
+                        printf("IOA: %i switch to %i\n", InformationObject_getObjectAddress(io), SingleCommand_getState((SingleCommand)sc));
+                        printf("Timestamp info: ");
+                        printCP56Time2a(SingleCommandWithCP56Time2a_getTimestamp(sc));
+                        CS101_ASDU_setCOT(asdu, CS101_COT_ACTIVATION_CON);
+                    }
+                    else
+                    {
+                        fprintf(stderr, "Failed to set coil status, address: %i.\n", InformationObject_getObjectAddress(io));
+                        CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_IOA); 
+                        CS101_ASDU_setNegative(asdu, true);
+                    }
                 }
                 else
                 {
                     CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_IOA);
+                    CS101_ASDU_setNegative(asdu, true);
                 }
                 InformationObject_destroy(io);
             }
@@ -393,12 +434,24 @@ asduHandler(void* parameter, IMasterConnection connection, CS101_ASDU asdu)
                    InformationObject_getObjectAddress(io) <= HOLDING_REGISTER_ADDRESS_END) 
                 {
                     SetpointCommandScaled spsc = (SetpointCommandScaled) io;
-                    printf("IOA: %i set to %i\n", InformationObject_getObjectAddress(io), SetpointCommandScaled_getValue(spsc));
-                    CS101_ASDU_setCOT(asdu, CS101_COT_ACTIVATION_CON);
+                    target_address = InformationObject_getObjectAddress(io) - HOLDING_REGISTER_ADDRESS_START;
+                    target_value = SetpointCommandScaled_getValue(spsc);
+                    if(write_holding_register(slave_id, target_address, target_value, mb_param->slaves[idx], mb_param->num_of_slaves[idx], mb_param->ctx[idx]))
+                    {
+                        printf("IOA: %i set to %i\n", InformationObject_getObjectAddress(io), SetpointCommandScaled_getValue(spsc));
+                        CS101_ASDU_setCOT(asdu, CS101_COT_ACTIVATION_CON);
+                    }
+                    else
+                    {
+                        fprintf(stderr, "Failed to set holding register value, address: %i.\n", InformationObject_getObjectAddress(io));
+                        CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_IOA);  
+                        CS101_ASDU_setNegative(asdu, true);
+                    }
                 }
                 else
                 {
                     CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_IOA);
+                    CS101_ASDU_setNegative(asdu, true);
                 }
                 InformationObject_destroy(io);
             }
@@ -430,14 +483,26 @@ asduHandler(void* parameter, IMasterConnection connection, CS101_ASDU asdu)
                    InformationObject_getObjectAddress(io) <= HOLDING_REGISTER_ADDRESS_END) 
                 {
                     SetpointCommandScaledWithCP56Time2a spsc = (SetpointCommandScaledWithCP56Time2a) io;
-                    printf("IOA: %i set to %i\n", InformationObject_getObjectAddress(io), SetpointCommandScaled_getValue((SetpointCommandScaled)spsc));
-                    printf("Timestamp info: ");
-                    printCP56Time2a(SetpointCommandScaledWithCP56Time2a_getTimestamp(spsc));
-                    CS101_ASDU_setCOT(asdu, CS101_COT_ACTIVATION_CON);
+                    target_address = InformationObject_getObjectAddress(io) - HOLDING_REGISTER_ADDRESS_START;
+                    target_value = SetpointCommandScaled_getValue((SetpointCommandScaled) spsc);
+                    if(write_holding_register(slave_id, target_address, target_value, mb_param->slaves[idx], mb_param->num_of_slaves[idx], mb_param->ctx[idx]))
+                    {
+                        printf("IOA: %i set to %i\n", InformationObject_getObjectAddress(io), SetpointCommandScaled_getValue((SetpointCommandScaled) spsc));
+                        printf("Timestamp info: ");
+                        printCP56Time2a(SetpointCommandScaledWithCP56Time2a_getTimestamp(spsc));
+                        CS101_ASDU_setCOT(asdu, CS101_COT_ACTIVATION_CON);
+                    }
+                    else
+                    {
+                        fprintf(stderr, "Failed to set holding register value, address: %i.\n", InformationObject_getObjectAddress(io));
+                        CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_IOA);  
+                        CS101_ASDU_setNegative(asdu, true);
+                    }
                 }
                 else
                 {
                     CS101_ASDU_setCOT(asdu, CS101_COT_UNKNOWN_IOA);
+                    CS101_ASDU_setNegative(asdu, true);
                 }
                 InformationObject_destroy(io);
             }
