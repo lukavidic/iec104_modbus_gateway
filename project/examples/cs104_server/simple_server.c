@@ -165,7 +165,7 @@ interrogationHandler(void* parameter, IMasterConnection connection, CS101_ASDU a
         idx = slave_id / OFFSET_BY_PORT - 1;
         if(idx < 0 || idx >= SERIAL_PORTS_NUM)
         {
-            fprintf(stderr, "Invalid slave ID, index out of bounds.\n");
+            fprintf(stderr, "Invalid slave ID: %u, index out of bounds.\n", slave_id);
             IMasterConnection_sendACT_CON(connection, asdu, true);
             return true;    
         }
@@ -593,6 +593,8 @@ main(int argc, char** argv)
         }
     }
 
+    print_slaves(mb_comm_param.slaves, mb_comm_param.num_of_slaves);
+
     /* create a new slave/server instance with default connection parameters and
      * default message queue size */
     CS104_Slave slave = CS104_Slave_create(10, 10);
@@ -650,7 +652,7 @@ main(int argc, char** argv)
     int16_t scaledValue = 0;
 
     while (running) {
-
+        /*
         Thread_sleep(10000);
 
         CS101_ASDU newAsdu = CS101_ASDU_create(alParams, false, CS101_COT_PERIODIC, 0, 1, false, false);
@@ -664,9 +666,11 @@ main(int argc, char** argv)
         InformationObject_destroy(io);
 
         /* Add ASDU to slave event queue */
+        /*
         CS104_Slave_enqueueASDU(slave, newAsdu);
 
         CS101_ASDU_destroy(newAsdu);
+        */
     }
 
     CS104_Slave_stop(slave);
