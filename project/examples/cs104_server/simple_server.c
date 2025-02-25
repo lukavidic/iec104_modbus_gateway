@@ -27,7 +27,7 @@
 #define HOLDING_REGISTER_ADDRESS_START  40001
 #define HOLDING_REGISTER_ADDRESS_END    50000
 
-const char* DEVICE_PATHS[SERIAL_PORTS_NUM] = {"/dev/ttyS1", "/dev/ttyS2", "/dev/ttyS3", "/dev/ttyS4", "/dev/ttyS5", "/dev/ttyS6"};
+const char* DEVICE_PATHS[SERIAL_PORTS_NUM] = {"/dev/ttyS1", "/dev/ttyS2", "/dev/ttyS3", "/dev/ttyS4", "/dev/ttyS6", "/dev/ttyS8"};
 const char* CONFIG_FILE_PATH = "config.json";
 
 /**
