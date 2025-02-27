@@ -20,7 +20,7 @@ To create Linux kernel image that needs to run on the target platform, apply the
 - Copy all files from the MA35D1_Buildroot_master folder of this repo to the folder of the previously cloned repo
 - Apply the custom defconfig using _make nuc980_custom_defconfig_
 - Build images using _make_ command
-- After build completed successfully, generated files will be located in _output/images_ folder of MA35D1 buildroot folder
+- After build completes successfully, generated files will be located in _output/images_ folder of MA35D1 buildroot folder
 
 ## How to deploy kernel image and device tree blob (.dtb)
 
