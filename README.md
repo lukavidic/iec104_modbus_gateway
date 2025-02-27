@@ -25,7 +25,11 @@ To create Linux kernel image that needs to run on the target platform, apply the
 ## How to deploy kernel image and device tree blob (.dtb)
 
 One option is to use Nuvoton NuWriter programming tool with the generated files (_uImage, nuc980-custom.dtb_). Second option is to boot system via network if you have factory U-Boot running and cannot access USB Boot mode for NuWriter to work.
-To boot via network, first install tftp server locally with command _sudo apt install tftpd-hpa_. On the target platform, stop the booting process while in U-Boot and enter the U-Boot shell. Inside U-Boot shell, create appropriate network configuration and modify _bootcmd_ command to the following: _tftp 0x7FC0 uImage; tftp 0xA00000 nuc980.dtb; bootm 0x7FC0 - 0xA00000_.
+
+To boot via network, first install tftp server locally with command _sudo apt install tftpd-hpa_. 
+
+On the target platform, stop the booting process while in U-Boot and enter the U-Boot shell. Inside U-Boot shell, create appropriate network configuration and modify _bootcmd_ command to the following: _tftp 0x7FC0 uImage; tftp 0xA00000 nuc980.dtb; bootm 0x7FC0 - 0xA00000_.
+
 **Note**: There is a buildroot post-build script that will automatically copy kernel image file and .dtb file to the /srv/tftp folder (requires sudo mode at the end of every build).
 
 ## How to compile and run test applications
@@ -33,12 +37,18 @@ First step to compiling any application is to source the environment script loca
 After building any application, transfer the executable file to the target platform using ssh or buildroot root filesystem overlay mechanism. Connect to the target platform and run the app like any other executable.
 
 ### Compile modbus master test app
-Locate shell to the modbus_master folder of this repo. Execute a simple cross-compiling command: _arm-linux-gcc *.c -o modbus_master -ljansson -lmodbus_
+Locate shell to the modbus_master folder of this repo. 
+
+Execute a simple cross-compiling command: _arm-linux-gcc *.c -o modbus_master -ljansson -lmodbus_
 
 ### Compile gateway application
-First build the iec60870 library. Locate shell into project folder and use the following command: _make CC=arm-linux-gcc AR=arm-linux-ar_. Then proceed to build the application. Locate shell into project/examples/cs104_server and use: _make CC=arm-linux-gcc_.
+First build the iec60870 library. Locate shell into project folder and use the following command: _make CC=arm-linux-gcc AR=arm-linux-ar_. 
+
+Then proceed to build the application. Locate shell into project/examples/cs104_server and use: _make CC=arm-linux-gcc_.
 
 ## Additional notes
 This project is made for the custom commercial NUC980 board. If you have another board you will probably need to modify the device tree source file (_nuc980-custom.dts_) to match your hardware configuration.
+
 To enable ssh, you need to create a pair of RSA keys locally and copy the public key content to a file named _authorized_keys_. Place this file in buildroot overlay folder inside _/root/.ssh/_.
+
 If you want to change network configuration of the target platform in Linux you can do so by modifying _/etc/network/interfaces_ file located inside the overlay folder.
